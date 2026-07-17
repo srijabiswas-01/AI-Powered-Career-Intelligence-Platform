@@ -108,32 +108,6 @@ scripts/migrate.mjs       Database migration runner
 - Adzuna and/or Jooble credentials for live job results
 - Cloudinary credentials for durable original-file storage
 
-## Environment configuration
-
-Copy `.env.example` to `.env` and enter private values:
-
-```powershell
-Copy-Item .env.example .env
-```
-
-```dotenv
-DATABASE_URL=postgresql://USER:PASSWORD@YOUR-POOLER-HOST/DATABASE?sslmode=require
-
-GROQ_API_KEY=
-OPENROUTER_API_KEY=
-AI_MODEL=llama-3.3-70b-versatile
-
-ADZUNA_APP_ID=
-ADZUNA_APP_KEY=
-ADZUNA_COUNTRY=in
-JOOBLE_API_KEY=
-
-CLOUDINARY_CLOUD_NAME=
-CLOUDINARY_API_KEY=
-CLOUDINARY_API_SECRET=
-
-HUGGINGFACE_API_KEY=
-```
 
 ### Environment-variable reference
 
@@ -157,13 +131,6 @@ Use the pooled Neon connection URL whose hostname contains `-pooler`. Never pref
 The `.gitignore` excludes `.env`, `.env.local`, `.env.*.local`, `.next`, and `.vercel`. Never commit private credentials.
 
 ## Local installation
-
-```powershell
-git clone https://github.com/srijabiswas-01/AI-Powered-Career-Intelligence-Platform.git
-Set-Location AI-Powered-Career-Intelligence-Platform
-npm install
-Copy-Item .env.example .env
-```
 
 Fill in `.env`, then create or update the database schema:
 
@@ -208,34 +175,6 @@ Foreign keys use cascading deletion where appropriate. Deleting a resume removes
 
 Migrations use `CREATE ... IF NOT EXISTS` and `ADD COLUMN IF NOT EXISTS`, so they can be run again safely.
 
-## Main API routes
-
-| Route | Method | Purpose |
-| --- | --- | --- |
-| `/api/health` | GET | Check the Neon database connection |
-| `/api/auth/register` | POST | Create an account and session |
-| `/api/auth/login` | POST | Sign in |
-| `/api/auth/logout` | POST | End the session |
-| `/api/auth/me` | GET | Return the signed-in user |
-| `/api/resumes` | GET, POST | List or upload resumes |
-| `/api/resumes/:id` | DELETE | Delete a resume and associated data |
-| `/api/resumes/:id/view` | GET | View an original resume |
-| `/api/resumes/:id/download` | GET | Download an original resume |
-| `/api/resumes/:id/analyze` | POST | Save a resume analysis |
-| `/api/resumes/:id/tailor` | POST | Create and save a tailored resume |
-| `/api/resumes/:id/cover-letter` | POST | Create a cover letter and HR email |
-| `/api/generated-documents` | GET | List generated-document history |
-| `/api/jobs` | GET | Search and normalize external job results |
-| `/api/applications` | GET, POST | List or create applications |
-| `/api/applications/:id` | PATCH, DELETE | Update stage or delete an application |
-| `/api/projects` | GET, POST | Manage projects |
-| `/api/certificates` | GET, POST | Manage certificates |
-| `/api/profile` | GET, PUT | Load or save profile settings |
-| `/api/portfolio` | GET | Build the portfolio view |
-| `/api/analytics` | GET | Return saved workspace metrics |
-
-Except for health, registration, and login, routes require the signed-in HTTP-only session cookie.
-
 ## Resume upload behavior
 
 The production upload limit is 4 MB because Vercel Functions accept request payloads up to 4.5 MB. The application validates the size in both the browser and API.
@@ -247,36 +186,6 @@ Supported formats:
 - Plain text (`.txt`)
 
 Password-protected, corrupted, or image-only PDFs may not contain extractable text. Convert scanned documents with OCR before uploading.
-
-## Deploy to Vercel
-
-1. Open [Vercel](https://vercel.com/new).
-2. Import this GitHub repository.
-3. Keep **Next.js** as the framework preset.
-4. Keep `npm run build` as the build command.
-5. Add all required values from `.env` in **Project Settings → Environment Variables**.
-6. Apply variables to Production and Preview.
-7. Deploy the project.
-
-Do not upload `.env` to Vercel as a repository file. Enter each value through the Vercel dashboard.
-
-After deployment, verify:
-
-```text
-https://YOUR-PROJECT.vercel.app/api/health
-```
-
-Expected response:
-
-```json
-{
-  "status": "ok",
-  "database": "neondb",
-  "timestamp": "..."
-}
-```
-
-Then test account registration, resume upload, job search, tailored resume generation, cover-letter generation, document downloads, application tracking, Settings, Portfolio, Analytics, and dark mode.
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for the focused deployment checklist and [BACKEND.md](BACKEND.md) for backend notes.
 
@@ -324,8 +233,4 @@ If a database URL or API key is pasted into chat, committed, included in screens
 - Ensure the PDF contains selectable text.
 - Remove password protection.
 - Run OCR on scanned PDFs before uploading.
-
-## Repository
-
-[github.com/srijabiswas-01/AI-Powered-Career-Intelligence-Platform](https://github.com/srijabiswas-01/AI-Powered-Career-Intelligence-Platform)
 
