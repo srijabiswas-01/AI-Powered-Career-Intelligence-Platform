@@ -1,0 +1,89 @@
+.authThemeToggle {
+  position: fixed;
+  right: 24px;
+  top: 22px;
+  z-index: 300;
+  width: 42px;
+  height: 42px;
+  border: 1px solid #e1e4eb;
+  border-radius: 10px;
+  background: #fff;
+  color: #5f4bd1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 8px 24px #2731531c;
+  transition: transform .2s, background .2s;
+}
+.authThemeToggle:hover { transform: translateY(-2px); }
+.authThemeToggle svg { width: 19px; }
+html[data-theme="dark"] .authThemeToggle {
+  background: #20283a;
+  border-color: #374057;
+  color: #f4c95d;
+}
+
+.periodSelect {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #e1e4eb;
+  border-radius: 8px;
+  background: #fff;
+  color: #656d7b;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.periodSelect select {
+  appearance: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: 700 10px 'DM Sans';
+  cursor: pointer;
+}
+.periodSelect select option { color: #172033; background: #fff; }
+
+html[data-theme="dark"] .periodSelect {
+  background: #20283a;
+  border-color: #3b465d;
+  color: #f2f4f9;
+}
+html[data-theme="dark"] .periodSelect select option { color: #eef1f8; background: #20283a; }
+
+html[data-theme="dark"] .sidebar nav button,
+html[data-theme="dark"] .sidebarBottom > button { color: #aeb8cc; }
+html[data-theme="dark"] .sidebar nav button svg,
+html[data-theme="dark"] .sidebarBottom > button svg { color: #9da9bf; }
+html[data-theme="dark"] .navlabel { color: #93a5c5; }
+html[data-theme="dark"] .welcome h2,
+html[data-theme="dark"] .cardHead p,
+html[data-theme="dark"] .job p small,
+html[data-theme="dark"] .stats small,
+html[data-theme="dark"] .quick button small,
+html[data-theme="dark"] .resultTitle small,
+html[data-theme="dark"] .workspaceList p { color: #b0bacd; }
+html[data-theme="dark"] .stats em { color: #64d6aa; }
+html[data-theme="dark"] .cardHead h3,
+html[data-theme="dark"] .resultCard h3,
+html[data-theme="dark"] .workspaceList h3 { color: #f5f7fb; }
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder { color: #8290a8; }
+
+.sidebar {
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #c5bee9 transparent;
+}
+.sidebar::-webkit-scrollbar { width: 6px; }
+.sidebar::-webkit-scrollbar-track { background: transparent; }
+.sidebar::-webkit-scrollbar-thumb {
+  background: #c5bee9;
+  border-radius: 999px;
+}
+.sidebar::-webkit-scrollbar-thumb:hover { background: #8b7ce0; }
+html[data-theme="dark"] .sidebar { scrollbar-color: #62569f transparent; }
+html[data-theme="dark"] .sidebar::-webkit-scrollbar-thumb { background: #62569f; }
+html[data-theme="dark"] .sidebar::-webkit-scrollbar-thumb:hover { background: #8b7cf2; }
