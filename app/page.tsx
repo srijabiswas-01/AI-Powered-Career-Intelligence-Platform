@@ -1005,7 +1005,7 @@ function UploadResumeModal({
         body: data,
       });
       const raw = await response.text();
-      let result: { error?: string; analysis?: { score: number } } = {};
+      let result: { error?: string; analysis?: { score: number }; warning?: string } = {};
       try {
         result = raw ? JSON.parse(raw) : {};
       } catch {
@@ -1019,7 +1019,7 @@ function UploadResumeModal({
         throw new Error(
           "The resume was uploaded but no analysis was returned.",
         );
-      done(`Resume analyzed — ATS score ${result.analysis.score}%`);
+      done(result.warning || `Resume analyzed — ATS score ${result.analysis.score}%`);
     } catch (error) {
       setError(error instanceof Error ? error.message : "Upload failed");
       setBusy(false);

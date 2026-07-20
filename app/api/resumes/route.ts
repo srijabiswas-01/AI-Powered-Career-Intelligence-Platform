@@ -43,6 +43,7 @@ export async function POST(request: Request) {
     if (!user) return apiError('Authentication required.', 401);
     const contentType = request.headers.get('content-type') ?? '';
     let filename = '', mimeType = 'text/plain', content = '', size = 0, fileData: Buffer | null = null, storageUrl: string | null = null, storagePublicId: string | null = null;
+    let extractionWarning: string | null = null;
     if (contentType.includes('multipart/form-data')) {
       const form = await request.formData();
       const file = form.get('file');
@@ -56,7 +57,8 @@ export async function POST(request: Request) {
         content = await extractResumeText(textFile);
       } catch (error) {
         console.error('Resume text extraction failed', error);
-        return apiError('The resume could not be read. Make sure it is a valid, non-password-protected PDF, DOCX, or TXT file.', 422);
+        extractionWarning = 'The file was saved, but text could not be extracted. For ATS analysis, upload a DOCX/TXT version or an Overleaf PDF with selectable text.';
+        content = '';
       }
       const storageFile = new File([bytes], file.name, { type: file.type });
       try {
@@ -84,7 +86,7 @@ export async function POST(request: Request) {
       values (${resume.id}, ${result.score}, ${database.json(result.strengths)}, ${database.json(result.improvements)}, ${database.json(result.keywords)}, ${'statistical'})
       returning id, score, strengths, improvements, keywords, provider, created_at
     `;
-    return NextResponse.json({ resume, analysis, extractedCharacters: content.length }, { status: 201 });
+    return NextResponse.json({ resume, analysis, extractedCharacters: content.length, warning: extractionWarning }, { status: 201 });
   } catch (error) {
     console.error('Resume upload failed', error);
     return apiError('Resume upload failed on the server. Check Vercel logs for the exact cause.', 500);
