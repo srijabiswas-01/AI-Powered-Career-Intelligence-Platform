@@ -5,7 +5,6 @@ import { uploadResume } from '@/lib/cloudinary';
 import { analyzeResumeText } from '@/lib/ats';
 import { database } from '@/lib/db';
 import { apiError } from '@/lib/http';
-import { extractResumeText } from '@/lib/resume-text';
 
 export const maxDuration = 60;
 export const runtime = 'nodejs';
@@ -53,6 +52,7 @@ export async function POST(request: Request) {
       const bytes = Buffer.from(await file.arrayBuffer());
       const textFile = new File([bytes], file.name, { type: file.type });
       try {
+        const { extractResumeText } = await import('@/lib/resume-text');
         content = await extractResumeText(textFile);
       } catch (error) {
         console.error('Resume text extraction failed', error);
