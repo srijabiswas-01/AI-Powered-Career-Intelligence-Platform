@@ -3,12 +3,12 @@ import { NextResponse } from 'next/server';
 import { getSessionUser } from '@/lib/auth';
 import { uploadResume } from '@/lib/cloudinary';
 import { analyzeResumeText } from '@/lib/ats';
-import { extractResumeKeywordsWithAI } from '@/lib/ai';
 import { database } from '@/lib/db';
 import { apiError } from '@/lib/http';
 import { extractResumeText } from '@/lib/resume-text';
 
 export const maxDuration = 60;
+export const runtime = 'nodejs';
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 export async function GET() {
@@ -39,58 +39,54 @@ type ResumeDataRow = {
 };
 
 export async function POST(request: Request) {
-  const user = await getSessionUser();
-  if (!user) return apiError('Authentication required.', 401);
-  const contentType = request.headers.get('content-type') ?? '';
-  let filename = '', mimeType = 'text/plain', content = '', size = 0, fileData: Buffer | null = null, storageUrl: string | null = null, storagePublicId: string | null = null;
-  if (contentType.includes('multipart/form-data')) {
-    const form = await request.formData();
-    const file = form.get('file');
-    if (!(file instanceof File)) return apiError('A resume file is required.');
-    if (file.size > MAX_UPLOAD_BYTES) return apiError('Resume must be 4 MB or smaller for web upload.');
-    filename = file.name; mimeType = file.type || 'application/octet-stream'; size = file.size;
-    fileData = Buffer.from(await file.arrayBuffer());
-    try {
-      content = await extractResumeText(file);
-    } catch (error) {
-      console.error('Resume text extraction failed', error);
-      return apiError('The PDF could not be read. Make sure it is a valid, non-password-protected PDF.', 422);
+  try {
+    const user = await getSessionUser();
+    if (!user) return apiError('Authentication required.', 401);
+    const contentType = request.headers.get('content-type') ?? '';
+    let filename = '', mimeType = 'text/plain', content = '', size = 0, fileData: Buffer | null = null, storageUrl: string | null = null, storagePublicId: string | null = null;
+    if (contentType.includes('multipart/form-data')) {
+      const form = await request.formData();
+      const file = form.get('file');
+      if (!(file instanceof File)) return apiError('A resume file is required.');
+      if (file.size > MAX_UPLOAD_BYTES) return apiError('Resume must be 4 MB or smaller for web upload.');
+      filename = file.name; mimeType = file.type || 'application/octet-stream'; size = file.size;
+      const bytes = Buffer.from(await file.arrayBuffer());
+      const textFile = new File([bytes], file.name, { type: file.type });
+      try {
+        content = await extractResumeText(textFile);
+      } catch (error) {
+        console.error('Resume text extraction failed', error);
+        return apiError('The resume could not be read. Make sure it is a valid, non-password-protected PDF, DOCX, or TXT file.', 422);
+      }
+      const storageFile = new File([bytes], file.name, { type: file.type });
+      try {
+        const stored = await uploadResume(storageFile, user.id);
+        storageUrl = stored?.url ?? null; storagePublicId = stored?.publicId ?? null;
+      } catch (error) {
+        console.error('Resume storage failed', error);
+        return apiError('The resume could not be stored. Please try again.', 502);
+      }
+      fileData = storageUrl ? null : bytes;
+    } else {
+      const body = await request.json().catch(() => null);
+      filename = String(body?.filename ?? '').trim(); content = String(body?.content ?? '');
+      mimeType = String(body?.mimeType ?? 'text/plain'); size = Buffer.byteLength(content);
     }
-    let stored;
-    try {
-      stored = await uploadResume(file, user.id);
-    } catch (error) {
-      console.error('Resume storage failed', error);
-      return apiError('The resume could not be stored. Please try again.', 502);
-    }
-    storageUrl = stored?.url ?? null; storagePublicId = stored?.publicId ?? null;
-  } else {
-    const body = await request.json().catch(() => null);
-    filename = String(body?.filename ?? '').trim(); content = String(body?.content ?? '');
-    mimeType = String(body?.mimeType ?? 'text/plain'); size = Buffer.byteLength(content);
+    if (!filename) return apiError('Filename is required.');
+    const [resume] = await database`
+      insert into resumes (user_id, filename, mime_type, size_bytes, content, file_data, storage_url, storage_public_id)
+      values (${user.id}, ${filename}, ${mimeType}, ${size}, ${content || null}, ${fileData}, ${storageUrl}, ${storagePublicId})
+      returning id, filename, mime_type, size_bytes, created_at
+    `;
+    const result = analyzeResumeText(content);
+    const [analysis] = await database`
+      insert into resume_analyses (resume_id, score, strengths, improvements, keywords, provider)
+      values (${resume.id}, ${result.score}, ${database.json(result.strengths)}, ${database.json(result.improvements)}, ${database.json(result.keywords)}, ${'statistical'})
+      returning id, score, strengths, improvements, keywords, provider, created_at
+    `;
+    return NextResponse.json({ resume, analysis, extractedCharacters: content.length }, { status: 201 });
+  } catch (error) {
+    console.error('Resume upload failed', error);
+    return apiError('Resume upload failed on the server. Check Vercel logs for the exact cause.', 500);
   }
-  if (!filename) return apiError('Filename is required.');
-  const [resume] = await database`
-    insert into resumes (user_id, filename, mime_type, size_bytes, content, file_data, storage_url, storage_public_id)
-    values (${user.id}, ${filename}, ${mimeType}, ${size}, ${content || null}, ${fileData}, ${storageUrl}, ${storagePublicId})
-    returning id, filename, mime_type, size_bytes, created_at
-  `;
-  const result = analyzeResumeText(content);
-  let keywords = result.keywords;
-  let provider = 'statistical';
-  if (content) {
-    try {
-      const extracted = await extractResumeKeywordsWithAI(content);
-      if (extracted.keywords.length) keywords = extracted.keywords;
-      provider = extracted.provider;
-    } catch (error) {
-      console.warn('AI keyword extraction failed; using statistical fallback', error);
-    }
-  }
-  const [analysis] = await database`
-    insert into resume_analyses (resume_id, score, strengths, improvements, keywords, provider)
-    values (${resume.id}, ${result.score}, ${database.json(result.strengths)}, ${database.json(result.improvements)}, ${database.json(keywords)}, ${provider})
-    returning id, score, strengths, improvements, keywords, provider, created_at
-  `;
-  return NextResponse.json({ resume, analysis, extractedCharacters: content.length }, { status: 201 });
 }
