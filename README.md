@@ -234,3 +234,152 @@ If a database URL or API key is pasted into chat, committed, included in screens
 - Remove password protection.
 - Run OCR on scanned PDFs before uploading.
 
+## Management Information System (MIS)
+
+### Purpose
+
+Clymbra AI is a career-focused Management Information System. It collects career data, processes it using AI and external services, stores the results, and presents useful information that supports employment and career-management decisions.
+
+The system helps users:
+
+- Manage resumes and professional profiles.
+- Evaluate resume quality and ATS compatibility.
+- Find relevant employment opportunities.
+- Compare resumes with job descriptions.
+- Generate tailored resumes, cover letters, and HR emails.
+- Track job applications through different stages.
+- Monitor career progress through dashboards and analytics.
+
+### MIS process flow
+
+```mermaid
+flowchart TD
+    A[User registration or login] --> B[Career dashboard]
+    B --> C[Upload resume]
+    C --> D[Extract resume text]
+    D --> E[Store resume and user data]
+    E --> F[Analyze resume]
+    F --> G[ATS score, skills, and recommendations]
+    G --> H[Search for jobs]
+    H --> I[Adzuna and Jooble APIs]
+    I --> J[Job results]
+    G --> K[Resume-to-job matching]
+    J --> K
+    K --> L[Match score and matching skills]
+    L --> M[Save job application]
+    L --> N[Generate tailored resume]
+    L --> O[Generate cover letter and HR email]
+    M --> P[Application pipeline]
+    N --> Q[Generated document history]
+    O --> Q
+    P --> R[Analytics and reports]
+    Q --> R
+    E --> R
+    R --> B
+```
+
+### Working principle
+
+The platform follows the standard MIS cycle of input, processing, storage, output, and feedback.
+
+#### 1. Input
+
+The system receives:
+
+- Account and profile information.
+- PDF, DOCX, or TXT resume files.
+- Skills, projects, and certificates.
+- Job-search keywords and locations.
+- Job descriptions and application details.
+- Live job listings from external job providers.
+
+#### 2. Processing
+
+The system:
+
+- Validates user credentials and manages sessions.
+- Extracts text from uploaded resumes.
+- Identifies skills and career keywords.
+- Evaluates resume structure and ATS compatibility.
+- Searches external job platforms.
+- Compares resume content with job descriptions.
+- Calculates job-specific match scores.
+- Uses AI to create tailored career documents.
+- Calculates dashboard and application statistics.
+
+#### 3. Storage
+
+Neon PostgreSQL stores users, sessions, resumes, analyses, profiles, applications, projects, certificates, tailored resumes, and cover letters. Cloudinary stores original resume files when configured.
+
+#### 4. Output
+
+The system produces:
+
+- Resume ATS scores.
+- Strengths and improvement recommendations.
+- Extracted skills and keywords.
+- Relevant job listings.
+- Job-match percentages.
+- Tailored resumes, cover letters, and HR emails.
+- Application-pipeline information.
+- Career analytics and dashboard metrics.
+
+#### 5. Feedback and control
+
+Users can improve and re-upload resumes, change job-search criteria, update their profiles, move applications between stages, review generated documents, and use analytics to guide future career decisions. This creates a continuous information and decision-making cycle.
+
+### MIS modules
+
+| Module | Input | Processing | Output |
+| --- | --- | --- | --- |
+| Authentication | Email and password | Validation, hashing, and session creation | Secure system access |
+| Resume management | PDF, DOCX, or TXT file | Validation, extraction, and storage | Resume record and preview |
+| Resume analysis | Extracted resume text | ATS and AI analysis | Score and recommendations |
+| Job search | Role, keywords, and location | Adzuna and Jooble requests | Relevant vacancies |
+| Job matching | Resume and job description | Keyword and relevance comparison | Match percentage and skills |
+| Document generation | Resume and selected job | AI-based tailoring | Resume, cover letter, and HR email |
+| Application tracking | Company, role, and status | Pipeline management | Application records |
+| Profile management | Personal and career data | Validation and database update | Professional portfolio |
+| Analytics | Stored career information | Aggregation and calculation | Dashboard statistics |
+
+### System architecture
+
+```mermaid
+flowchart LR
+    U[User] --> UI[Next.js user interface]
+    UI --> API[Next.js API routes]
+    API --> AUTH[Authentication service]
+    API --> ATS[Resume and ATS engine]
+    API --> AI[AI integration]
+    API --> JOBS[Job-search integration]
+    API --> DOCS[Document generator]
+    AUTH --> DB[(Neon PostgreSQL)]
+    ATS --> DB
+    DOCS --> DB
+    AI --> GROQ[Groq]
+    AI --> OR[OpenRouter]
+    JOBS --> AD[Adzuna]
+    JOBS --> JO[Jooble]
+    API --> CL[Cloudinary]
+```
+
+### Management levels supported
+
+- **Operational level:** uploading resumes, searching for jobs, and recording applications.
+- **Tactical level:** comparing job matches, monitoring application stages, and improving resumes.
+- **Strategic level:** reviewing career analytics, identifying skill gaps, and planning long-term career development.
+
+### Key MIS principles
+
+- **Data-driven decisions:** recommendations are based on resume, job, and application information.
+- **Centralized information:** career records are maintained in one workspace.
+- **User-specific processing:** authenticated users can access only their own records.
+- **AI-assisted processing:** AI generates recommendations and documents from supplied information.
+- **Factual document generation:** tailored documents use facts from the source resume and avoid invented qualifications.
+- **Continuous monitoring:** dashboard information changes as resumes and applications are updated.
+- **External integration:** job and AI providers supplement locally stored information.
+- **Information security:** passwords are hashed, sessions use HTTP-only cookies, and database queries are parameterized.
+
+### MIS conclusion
+
+Clymbra AI is a career-oriented Management Information System because it transforms raw resume, profile, job, and application data into meaningful information such as ATS scores, job matches, tailored documents, and career analytics. These outputs help users make informed career decisions and monitor their progress from a centralized workspace.

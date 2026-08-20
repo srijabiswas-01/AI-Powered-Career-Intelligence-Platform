@@ -29,6 +29,13 @@ import {
   WandSparkles,
   Moon,
   Sun,
+  UserRound,
+  Mail,
+  MapPin,
+  Phone,
+  Link,
+  Code2,
+  Save,
 } from "lucide-react";
 
 const nav = [
@@ -106,6 +113,13 @@ const quick = [
     tone: "orange",
   },
 ];
+
+const loadingMessages = [
+  "Securing your session",
+  "Reading your career signals",
+  "Organizing your opportunities",
+  "Polishing your workspace",
+];
 const modules: Record<string, { text: string; action: string }> = {
   "My Resumes": {
     text: "Create, upload, manage, and optimize every version of your resume.",
@@ -157,6 +171,7 @@ export default function Home() {
     "week" | "month" | "all"
   >("week");
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+  const [loadingStep, setLoadingStep] = useState(0);
   const [user, setUser] = useState({ name: "User", email: "" });
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [refresh, setRefresh] = useState(0),
@@ -193,6 +208,14 @@ export default function Home() {
     document.documentElement.dataset.theme = selected;
   }, []);
   useEffect(() => {
+    if (authenticated !== null) return;
+    const timer = window.setInterval(
+      () => setLoadingStep((step) => (step + 1) % loadingMessages.length),
+      900,
+    );
+    return () => window.clearInterval(timer);
+  }, [authenticated]);
+  useEffect(() => {
     if (!authenticated) return;
     Promise.all([
       fetch(`/api/dashboard?period=${dashboardPeriod}`).then((r) => r.json()),
@@ -218,7 +241,7 @@ export default function Home() {
     role: item.role,
     stage: item.stage,
     date: String(item.applied_at).slice(0, 10),
-    color: ["#7c3aed", "#2563eb", "#ea580c"][index % 3],
+    color: ["#16835f", "#2563eb", "#ea580c"][index % 3],
     initials: item.company
       .split(" ")
       .map((word) => word[0])
@@ -246,9 +269,38 @@ export default function Home() {
   if (authenticated === null)
     return (
       <div className="authLoading">
-        <span className="brandmark">
-          <TrendingUp />
-        </span>
+        <div className="loadingGlow loadingGlowOne" />
+        <div className="loadingGlow loadingGlowTwo" />
+        <section className="loadingCard" aria-live="polite" aria-busy="true">
+          <div className="loadingVisual" aria-hidden="true">
+            <div className="loadingOrbit orbitOne">
+              <span className="orbitBadge orbitResume"><FileText /></span>
+            </div>
+            <div className="loadingOrbit orbitTwo">
+              <span className="orbitBadge orbitJob"><BriefcaseBusiness /></span>
+            </div>
+            <div className="loadingLogo">
+              <TrendingUp />
+              <i className="logoSpark"><Sparkles /></i>
+            </div>
+            <span className="floatingSkill skillAi">AI</span>
+            <span className="floatingSkill skillAts">ATS</span>
+            <span className="floatingSkill skillMatch"><Target /> Match</span>
+          </div>
+          <div className="loadingBrand">Clymbra <b>AI</b></div>
+          <h1>Your next move is taking shape</h1>
+          <p>A tiny career copilot is arranging everything just for you.</p>
+          <div className="loadingTrack"><i /></div>
+          <span className="loadingStatus" key={loadingStep}>
+            <i /> {loadingMessages[loadingStep]}
+          </span>
+          <div className="loadingSteps" aria-hidden="true">
+            {loadingMessages.map((_, index) => (
+              <i key={index} className={index <= loadingStep ? "done" : ""} />
+            ))}
+          </div>
+        </section>
+        <small className="loadingFooter"><Sparkles /> Dream it · Match it · Clymb it</small>
       </div>
     );
   if (!authenticated)
@@ -874,16 +926,6 @@ function LoginScreen({
                 <label>
                   <input type="checkbox" /> Remember me
                 </label>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setError(
-                      "Password recovery is unavailable in local demo mode.",
-                    )
-                  }
-                >
-                  Forgot password?
-                </button>
               </div>
             )}
             <button className="authSubmit" type="submit">
@@ -1947,70 +1989,144 @@ function WorkspaceItems({ kind }: { kind: "projects" | "certificates" }) {
   );
 }
 
+type ProfileDetails = Record<string, string>;
+type ProfileAccount = { id: string; name: string; email: string };
+
 function SettingsPage() {
-  const [profile, setProfile] = useState<Record<string, string> | null>(null),
-    [message, setMessage] = useState("");
+  const [profile, setProfile] = useState<ProfileDetails | null>(null),
+    [account, setAccount] = useState<ProfileAccount | null>(null),
+    [message, setMessage] = useState(""),
+    [error, setError] = useState(""),
+    [saving, setSaving] = useState(false);
   useEffect(() => {
     fetch("/api/profile")
-      .then((r) => r.json())
-      .then((data) => setProfile(data.profile));
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not load profile.");
+        setProfile(data.profile);
+        setAccount(data.user);
+      })
+      .catch((reason) =>
+        setError(reason instanceof Error ? reason.message : "Could not load profile."),
+      );
   }, []);
-  if (!profile) return <div className="moduleEmpty">Loading settings…</div>;
+  if (error && !profile) return <div className="moduleEmpty">{error}</div>;
+  if (!profile || !account) return <div className="moduleEmpty">Loading profile...</div>;
+
+  const fieldValue = (name: string) =>
+    profile[name] ||
+    profile[name.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)] ||
+    "";
+  const completionFields = [
+    account.name,
+    fieldValue("headline"),
+    fieldValue("location"),
+    fieldValue("phone"),
+    fieldValue("skills"),
+    fieldValue("bio"),
+    fieldValue("linkedinUrl"),
+    fieldValue("portfolioUrl"),
+  ];
+  const completion = Math.round(
+    (completionFields.filter((field) => Boolean(field.trim())).length /
+      completionFields.length) * 100,
+  );
+  const initials = account.name.split(/\s+/).slice(0, 2)
+    .map((part) => part[0]).join("").toUpperCase();
+
   const save = async (form: HTMLFormElement) => {
+    setSaving(true);
+    setMessage("");
+    setError("");
     const body = Object.fromEntries(new FormData(form));
-    const response = await fetch("/api/profile", {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    setMessage(response.ok ? "Settings saved." : "Could not save settings.");
+    try {
+      const response = await fetch("/api/profile", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not save profile.");
+      setProfile(data.profile);
+      setAccount(data.user);
+      setMessage("Profile saved successfully.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not save profile.");
+    } finally {
+      setSaving(false);
+    }
   };
+
   return (
-    <section className="modulePage">
-      <div className="moduleHero">
-        <span>
-          <Settings />
-        </span>
-        <div>
-          <p>ACCOUNT</p>
-          <h1>Settings</h1>
-          <h2>Manage the profile used by your portfolio.</h2>
+    <section className="modulePage profilePage">
+      <div className="profileBanner">
+        <div className="profileIdentity">
+          <div className="profileAvatar">{initials || "ME"}</div>
+          <div>
+            <p>CAREER PROFILE</p>
+            <h1>{account.name}</h1>
+            <h2>{fieldValue("headline") || "Add your professional headline"}</h2>
+            <span><Mail size={13} /> {account.email}</span>
+          </div>
+        </div>
+        <div className="profileCompletion">
+          <strong>{completion}%</strong>
+          <span>Profile complete</span>
+          <div><i style={{ width: `${completion}%` }} /></div>
+          <small>Complete your profile to improve your portfolio.</small>
         </div>
       </div>
       <form
-        className="settingsForm"
+        className="profileForm"
         onSubmit={(e) => {
           e.preventDefault();
           void save(e.currentTarget);
         }}
       >
-        {[
-          ["headline", "Professional headline"],
-          ["location", "Location"],
-          ["phone", "Phone"],
-          ["skills", "Skills"],
-          ["linkedinUrl", "LinkedIn URL"],
-          ["githubUrl", "GitHub URL"],
-          ["portfolioUrl", "Portfolio URL"],
-        ].map(([name, label]) => (
-          <label key={name}>
-            {label}
-            <input
-              name={name}
-              defaultValue={
-                profile[name] ||
-                profile[name.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`)] ||
-                ""
-              }
-            />
-          </label>
-        ))}
-        <label className="wide">
-          Professional bio
-          <textarea name="bio" defaultValue={profile.bio || ""} />
-        </label>
-        <button>Save settings</button>
-        {message && <span>{message}</span>}
+        <section className="profileSection">
+          <div className="profileSectionHead">
+            <UserRound />
+            <div><h2>Personal information</h2><p>Your basic account and contact details.</p></div>
+          </div>
+          <div className="profileFields">
+            <label>Full name<input name="fullName" defaultValue={account.name} minLength={2} maxLength={120} required /></label>
+            <label>Email address<input value={account.email} disabled /><small>Email cannot be changed here.</small></label>
+            <label><span><MapPin /> Location</span><input name="location" defaultValue={fieldValue("location")} placeholder="City, Country" /></label>
+            <label><span><Phone /> Phone number</span><input name="phone" type="tel" defaultValue={fieldValue("phone")} placeholder="+91 98765 43210" /></label>
+          </div>
+        </section>
+
+        <section className="profileSection">
+          <div className="profileSectionHead">
+            <BriefcaseBusiness />
+            <div><h2>Professional profile</h2><p>Information shown throughout your career portfolio.</p></div>
+          </div>
+          <div className="profileFields">
+            <label className="wide">Professional headline<input name="headline" defaultValue={fieldValue("headline")} placeholder="e.g. Full-stack developer and AI enthusiast" /></label>
+            <label className="wide">Core skills<input name="skills" defaultValue={fieldValue("skills")} placeholder="React, TypeScript, PostgreSQL, Product Design" /><small>Separate skills with commas.</small></label>
+            <label className="wide">Professional bio<textarea name="bio" defaultValue={fieldValue("bio")} maxLength={2000} placeholder="Describe your experience, strengths, and career goals." /></label>
+          </div>
+        </section>
+
+        <section className="profileSection">
+          <div className="profileSectionHead">
+            <Globe2 />
+            <div><h2>Professional links</h2><p>Connect recruiters with your work and online presence.</p></div>
+          </div>
+          <div className="profileFields">
+            <label><span><Link /> LinkedIn</span><input name="linkedinUrl" type="url" defaultValue={fieldValue("linkedinUrl")} placeholder="https://linkedin.com/in/username" /></label>
+            <label><span><Code2 /> GitHub</span><input name="githubUrl" type="url" defaultValue={fieldValue("githubUrl")} placeholder="https://github.com/username" /></label>
+            <label className="wide"><span><Globe2 /> Portfolio website</span><input name="portfolioUrl" type="url" defaultValue={fieldValue("portfolioUrl")} placeholder="https://yourportfolio.com" /></label>
+          </div>
+        </section>
+
+        <div className="profileActions">
+          <div>
+            {message && <span className="profileSaveMessage"><CircleCheck /> {message}</span>}
+            {error && <span className="profileSaveError">{error}</span>}
+          </div>
+          <button type="submit" disabled={saving}><Save /> {saving ? "Saving..." : "Save profile"}</button>
+        </div>
       </form>
     </section>
   );

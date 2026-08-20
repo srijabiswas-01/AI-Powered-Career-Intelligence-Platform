@@ -8,7 +8,7 @@
   border: 1px solid #e1e4eb;
   border-radius: 10px;
   background: #fff;
-  color: #5f4bd1;
+  color: #0f6f52;
   display: grid;
   place-items: center;
   cursor: pointer;
@@ -20,7 +20,7 @@
 html[data-theme="dark"] .authThemeToggle {
   background: #20283a;
   border-color: #374057;
-  color: #f4c95d;
+  color: #a7f3d0;
 }
 
 .periodSelect {
@@ -75,15 +75,15 @@ html[data-theme="dark"] textarea::placeholder { color: #8290a8; }
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: thin;
-  scrollbar-color: #c5bee9 transparent;
+  scrollbar-color: #9bcfb7 transparent;
 }
 .sidebar::-webkit-scrollbar { width: 6px; }
 .sidebar::-webkit-scrollbar-track { background: transparent; }
 .sidebar::-webkit-scrollbar-thumb {
-  background: #c5bee9;
+  background: #9bcfb7;
   border-radius: 999px;
 }
-.sidebar::-webkit-scrollbar-thumb:hover { background: #8b7ce0; }
-html[data-theme="dark"] .sidebar { scrollbar-color: #62569f transparent; }
-html[data-theme="dark"] .sidebar::-webkit-scrollbar-thumb { background: #62569f; }
-html[data-theme="dark"] .sidebar::-webkit-scrollbar-thumb:hover { background: #8b7cf2; }
+.sidebar::-webkit-scrollbar-thumb:hover { background: #42ae82; }
+html[data-theme="dark"] .sidebar { scrollbar-color: #367a62 transparent; }
+html[data-theme="dark"] .sidebar::-webkit-scrollbar-thumb { background: #367a62; }
+html[data-theme="dark"] .sidebar::-webkit-scrollbar-thumb:hover { background: #45c894; }

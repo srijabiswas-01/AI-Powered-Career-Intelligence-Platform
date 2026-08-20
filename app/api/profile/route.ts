@@ -1,5 +1,64 @@
 import { NextResponse } from 'next/server';
-import { getSessionUser } from '@/lib/auth'; import { database } from '@/lib/db'; import { apiError } from '@/lib/http';
-export async function GET(){const user=await getSessionUser();if(!user)return apiError('Authentication required.',401);const [profile]=await database`select headline,location,phone,bio,skills,linkedin_url,github_url,portfolio_url from profiles where user_id=${user.id}`;return NextResponse.json({profile:profile||{}})}
-export async function PUT(request:Request){const user=await getSessionUser();if(!user)return apiError('Authentication required.',401);const body=await request.json().catch(()=>null);const value=(key:string)=>String(body?.[key]||'').trim().slice(0,key==='bio'?2000:500);const [profile]=await database`insert into profiles (user_id,headline,location,phone,bio,skills,linkedin_url,github_url,portfolio_url) values (${user.id},${value('headline')||null},${value('location')||null},${value('phone')||null},${value('bio')||null},${value('skills')||null},${value('linkedinUrl')||null},${value('githubUrl')||null},${value('portfolioUrl')||null}) on conflict(user_id) do update set headline=excluded.headline,location=excluded.location,phone=excluded.phone,bio=excluded.bio,skills=excluded.skills,linkedin_url=excluded.linkedin_url,github_url=excluded.github_url,portfolio_url=excluded.portfolio_url,updated_at=now() returning *`;return NextResponse.json({profile})}
 
+import { getSessionUser } from '@/lib/auth';
+import { database } from '@/lib/db';
+import { apiError } from '@/lib/http';
+
+export async function GET() {
+  const user = await getSessionUser();
+  if (!user) return apiError('Authentication required.', 401);
+
+  const [profile] = await database`
+    select headline, location, phone, bio, skills,
+      linkedin_url, github_url, portfolio_url
+    from profiles
+    where user_id = ${user.id}
+  `;
+
+  return NextResponse.json({ user, profile: profile || {} });
+}
+
+export async function PUT(request: Request) {
+  const user = await getSessionUser();
+  if (!user) return apiError('Authentication required.', 401);
+
+  const body = await request.json().catch(() => null);
+  const fullName = String(body?.fullName || '').trim().slice(0, 120);
+  if (fullName.length < 2) {
+    return apiError('Full name must contain at least 2 characters.');
+  }
+
+  const value = (key: string) =>
+    String(body?.[key] || '')
+      .trim()
+      .slice(0, key === 'bio' ? 2000 : 500);
+
+  await database`update users set name = ${fullName} where id = ${user.id}`;
+  const [profile] = await database`
+    insert into profiles (
+      user_id, headline, location, phone, bio, skills,
+      linkedin_url, github_url, portfolio_url
+    ) values (
+      ${user.id}, ${value('headline') || null}, ${value('location') || null},
+      ${value('phone') || null}, ${value('bio') || null}, ${value('skills') || null},
+      ${value('linkedinUrl') || null}, ${value('githubUrl') || null},
+      ${value('portfolioUrl') || null}
+    )
+    on conflict(user_id) do update set
+      headline = excluded.headline,
+      location = excluded.location,
+      phone = excluded.phone,
+      bio = excluded.bio,
+      skills = excluded.skills,
+      linkedin_url = excluded.linkedin_url,
+      github_url = excluded.github_url,
+      portfolio_url = excluded.portfolio_url,
+      updated_at = now()
+    returning *
+  `;
+
+  return NextResponse.json({
+    user: { id: user.id, name: fullName, email: user.email },
+    profile,
+  });
+}
