@@ -4,7 +4,10 @@ import { getSessionUser } from '@/lib/auth';
 import { database } from '@/lib/db';
 import { apiError } from '@/lib/http';
 import { analyzeResumeText } from '@/lib/ats';
-import { extractResumeKeywordsWithAI } from '@/lib/ai';
+import { reviewResumeWithAI } from '@/lib/ai';
+
+export const maxDuration = 60;
+export const runtime = 'nodejs';
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser();
@@ -18,15 +21,18 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const targetRole = String(body?.targetRole ?? '').trim();
   const jobDescription = String(body?.jobDescription ?? '').trim();
   const result = analyzeResumeText(resume.content ?? '', jobDescription);
-  let keywords = result.keywords, provider = 'statistical';
-  if (resume.content && !jobDescription) {
-    try { const extracted = await extractResumeKeywordsWithAI(resume.content); keywords = extracted.keywords; provider = extracted.provider; }
-    catch (error) { console.warn('AI keyword extraction failed; using statistical fallback', error); }
+  if (!resume.content || resume.content.length < 80) return apiError('Readable resume text is unavailable. Upload a text-based PDF, DOCX, or clearer scan.', 422);
+  let strengths = result.strengths, improvements = result.improvements, keywords = result.keywords, provider = 'heuristic';
+  try {
+    const review = await reviewResumeWithAI(resume.content, jobDescription);
+    strengths = review.strengths; improvements = review.improvements; keywords = review.keywords; provider = review.provider;
+  } catch (error) {
+    console.warn('AI resume review failed; using heuristic fallback', error);
   }
   const [analysis] = await database`
     insert into resume_analyses (resume_id, score, target_role, job_description, strengths, improvements, keywords, provider)
-    values (${id}, ${result.score}, ${targetRole || null}, ${jobDescription || null}, ${database.json(result.strengths)}, ${database.json(result.improvements)}, ${database.json(keywords)}, ${provider})
+    values (${id}, ${result.score}, ${targetRole || null}, ${jobDescription || null}, ${database.json(strengths)}, ${database.json(improvements)}, ${database.json(keywords)}, ${provider})
     returning id, score, strengths, improvements, keywords, provider, created_at
   `;
-  return NextResponse.json({ analysis }, { status: 201 });
+  return NextResponse.json({ analysis, analysisMode: provider === 'heuristic' ? 'fallback' : 'ai' }, { status: 201 });
 }

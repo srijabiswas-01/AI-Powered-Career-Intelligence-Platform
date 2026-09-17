@@ -5,6 +5,7 @@ import {
   FileText,
   Sparkles,
   BriefcaseBusiness,
+  ApplicationFile,
   FolderKanban,
   Award,
   Globe2,
@@ -36,14 +37,16 @@ import {
   Link,
   Code2,
   Save,
-} from "lucide-react";
+} from "./bootstrap-icons";
+import { APPLICATION_STAGES } from "@/lib/applications";
+import ProfessionalProfileSettings from "./profile-settings";
 
 const nav = [
   ["Dashboard", LayoutDashboard],
   ["My Resumes", FileText],
   ["AI Tools", Sparkles],
   ["Job Search", BriefcaseBusiness],
-  ["Applications", FolderKanban],
+  ["Applications", ApplicationFile],
   ["Projects", FolderKanban],
   ["Certificates", Award],
   ["Portfolio", Globe2],
@@ -68,13 +71,14 @@ type ResumeData = {
   id: string;
   filename: string;
   size_bytes: number;
-  storage_url?: string;
   content_preview?: string;
   created_at: string;
   score?: number;
   strengths?: string[];
   improvements?: string[];
   keywords?: string[];
+  provider?: string;
+  extraction_status?: "ready" | "failed";
   ats_breakdown?: AtsBreakdown[];
 };
 type DashboardData = {
@@ -96,7 +100,7 @@ type DashboardData = {
 const quick = [
   {
     title: "Analyze my resume",
-    text: "Get an ATS score and clear fixes",
+    text: "Get a readiness score and clear fixes",
     icon: Target,
     tone: "violet",
   },
@@ -197,7 +201,7 @@ export default function Home() {
       .catch(() => setAuthenticated(false));
   }, []);
   useEffect(() => {
-    const saved = localStorage.getItem("clymbra-theme");
+    const saved = localStorage.getItem("careerpilot-theme");
     const selected =
       saved === "dark" || saved === "light"
         ? saved
@@ -207,6 +211,12 @@ export default function Home() {
     setTheme(selected);
     document.documentElement.dataset.theme = selected;
   }, []);
+  useEffect(() => {
+    document.body.style.overflow = mobile ? "hidden" : "";
+    const closeDrawer = (event: KeyboardEvent) => { if (event.key === "Escape") setMobile(false); };
+    window.addEventListener("keydown", closeDrawer);
+    return () => { document.body.style.overflow = ""; window.removeEventListener("keydown", closeDrawer); };
+  }, [mobile]);
   useEffect(() => {
     if (authenticated !== null) return;
     const timer = window.setInterval(
@@ -241,7 +251,7 @@ export default function Home() {
     role: item.role,
     stage: item.stage,
     date: String(item.applied_at).slice(0, 10),
-    color: ["#16835f", "#2563eb", "#ea580c"][index % 3],
+    color: ["#2554E0", "#2563eb", "#ea580c"][index % 3],
     initials: item.company
       .split(" ")
       .map((word) => word[0])
@@ -263,7 +273,7 @@ export default function Home() {
   const toggleTheme = () => {
     const next = theme === "light" ? "dark" : "light";
     setTheme(next);
-    localStorage.setItem("clymbra-theme", next);
+    localStorage.setItem("careerpilot-theme", next);
     document.documentElement.dataset.theme = next;
   };
   if (authenticated === null)
@@ -287,7 +297,7 @@ export default function Home() {
             <span className="floatingSkill skillAts">ATS</span>
             <span className="floatingSkill skillMatch"><Target /> Match</span>
           </div>
-          <div className="loadingBrand">Clymbra <b>AI</b></div>
+          <div className="loadingBrand">CareerPilot <b>AI</b></div>
           <h1>Your next move is taking shape</h1>
           <p>A tiny career copilot is arranging everything just for you.</p>
           <div className="loadingTrack"><i /></div>
@@ -319,15 +329,15 @@ export default function Home() {
     );
   return (
     <main className="shell">
-      <aside className={"sidebar " + (mobile ? "open" : "")}>
+      <aside id="primary-sidebar" aria-label="Primary navigation" className={"sidebar " + (mobile ? "open" : "")}>
         <div className="brand">
           <span className="brandmark">
             <TrendingUp size={19} />
           </span>
           <span>
-            Clymbra <b>AI</b>
+            CareerPilot <b>AI</b>
           </span>
-          <button className="close" onClick={() => setMobile(false)}>
+          <button className="close" aria-label="Close navigation" title="Close navigation" onClick={() => setMobile(false)}>
             <X />
           </button>
         </div>
@@ -389,10 +399,10 @@ export default function Home() {
           )}
         </div>
       </aside>
-      {mobile && <div className="overlay" onClick={() => setMobile(false)} />}
+      {mobile && <button className="overlay" aria-label="Close navigation" onClick={() => setMobile(false)} />}
       <section className="content">
         <header>
-          <button className="menu" onClick={() => setMobile(true)}>
+          <button className="menu" aria-label="Open navigation" title="Open navigation" aria-controls="primary-sidebar" aria-expanded={mobile} onClick={() => setMobile(true)}>
             <Menu />
           </button>
           <form
@@ -427,16 +437,11 @@ export default function Home() {
             <button
               className="iconBtn"
               aria-label="Notifications"
+              title="Notifications"
               onClick={() => setModal("Notifications")}
             >
               <Bell size={19} />
-              <i />
-            </button>
-            <button
-              className="primary"
-              onClick={() => setModal("Upload resume")}
-            >
-              <Plus size={17} /> Add resume
+              <span className="notificationDot" aria-hidden="true" />
             </button>
           </div>
         </header>
@@ -574,7 +579,7 @@ export default function Home() {
                     </button>
                   </div>
                   <div className="tabs">
-                    {["All", "Applied", "Interview", "Offer"].map((n) => (
+                    {["All", ...APPLICATION_STAGES].map((n) => (
                       <button
                         key={n}
                         className={filter === n ? "selected" : ""}
@@ -630,7 +635,7 @@ export default function Home() {
                   <div className="cardHead">
                     <div>
                       <h3>Quick actions</h3>
-                      <p>Powered by Clymbra AI</p>
+                      <p>Powered by CareerPilot AI</p>
                     </div>
                     <Sparkles className="spark" size={19} />
                   </div>
@@ -747,7 +752,7 @@ export default function Home() {
           ) : active === "Analytics" ? (
             <AnalyticsPage />
           ) : active === "Settings" ? (
-            <SettingsPage />
+            <ProfessionalProfileSettings />
           ) : (
             <ModulePage
               name={active}
@@ -830,7 +835,7 @@ function LoginScreen({
             <TrendingUp size={19} />
           </span>
           <span>
-            Clymbra <b>AI</b>
+            CareerPilot <b>AI</b>
           </span>
         </div>
         <div className="storyCopy">
@@ -858,7 +863,7 @@ function LoginScreen({
             </span>
           </div>
         </div>
-        <small>© 2026 Clymbra AI. Your career, elevated.</small>
+        <small>© 2026 CareerPilot AI. Your career, elevated.</small>
       </section>
       <section className="authPanel">
         <div className="authBox">
@@ -866,9 +871,9 @@ function LoginScreen({
             <span className="brandmark">
               <TrendingUp size={19} />
             </span>
-            Clymbra <b>AI</b>
+            CareerPilot <b>AI</b>
           </div>
-          <p className="eyebrow">WELCOME TO CLYMBRA</p>
+          <p className="eyebrow">WELCOME TO CAREERPILOT</p>
           <h2>{mode === "login" ? "Welcome back" : "Create your account"}</h2>
           <p>
             {mode === "login"
@@ -929,7 +934,7 @@ function LoginScreen({
               </div>
             )}
             <button className="authSubmit" type="submit">
-              {mode === "login" ? "Sign in to Clymbra" : "Create account"}{" "}
+              {mode === "login" ? "Sign in to CareerPilot" : "Create account"}{" "}
               <ArrowUpRight size={17} />
             </button>
           </form>
@@ -1001,7 +1006,7 @@ function ModulePage({
           <Icon />
         </span>
         <div>
-          <p>CLYMBRA WORKSPACE</p>
+          <p>CAREERPILOT WORKSPACE</p>
           <h1>{name}</h1>
           <h2>{info?.text}</h2>
         </div>
@@ -1047,7 +1052,7 @@ function UploadResumeModal({
         body: data,
       });
       const raw = await response.text();
-      let result: { error?: string; analysis?: { score: number }; warning?: string } = {};
+      let result: { error?: string; analysis?: { score: number }; analysisMode?: "ai" | "fallback" } = {};
       try {
         result = raw ? JSON.parse(raw) : {};
       } catch {
@@ -1061,7 +1066,7 @@ function UploadResumeModal({
         throw new Error(
           "The resume was uploaded but no analysis was returned.",
         );
-      done(result.warning || `Resume analyzed — ATS score ${result.analysis.score}%`);
+      done(`Resume analyzed — readiness score ${result.analysis.score}%${result.analysisMode === "fallback" ? " (AI unavailable; checklist fallback used)" : " (AI review completed)"}`);
     } catch (error) {
       setError(error instanceof Error ? error.message : "Upload failed");
       setBusy(false);
@@ -1076,10 +1081,10 @@ function UploadResumeModal({
         <span className="modalIcon">
           <Upload />
         </span>
-        <h2>Upload and analyze resume</h2>
+          <h2>Upload and review resume</h2>
         <p>
-          PDF, DOCX, or TXT. Text is extracted, analyzed, and saved
-          automatically.
+          PDF, DOCX, or TXT. The file is saved only after readable text is
+          extracted. AI feedback uses a checklist fallback if the provider is unavailable.
         </p>
         {error && <div className="authMessage error">{error}</div>}
         <form
@@ -1095,7 +1100,7 @@ function UploadResumeModal({
             <input name="file" type="file" accept=".pdf,.docx,.txt" required />
           </label>
           <button className="submit" disabled={busy}>
-            {busy ? "Uploading and analyzing…" : "Upload and analyze"}{" "}
+            {busy ? "Uploading and reviewing…" : "Upload and review"}{" "}
             <ArrowUpRight size={16} />
           </button>
         </form>
@@ -1115,10 +1120,7 @@ function ResumesPage({
   changed: () => void;
   suggest: (id: string) => void;
 }) {
-  const viewUrl = (resume: ResumeData) =>
-    resume.filename.toLowerCase().endsWith(".docx") && resume.storage_url
-      ? `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(resume.storage_url)}`
-      : `/api/resumes/${resume.id}/view`;
+  const viewUrl = (resume: ResumeData) => `/api/resumes/${resume.id}/view`;
   const [pendingDelete, setPendingDelete] = useState<ResumeData | null>(null),
     [deleting, setDeleting] = useState(false),
     [deleteError, setDeleteError] = useState("");
@@ -1147,9 +1149,9 @@ function ResumesPage({
           <FileText />
         </span>
         <div>
-          <p>CLYMBRA WORKSPACE</p>
+          <p>CAREERPILOT WORKSPACE</p>
           <h1>My Resumes</h1>
-          <h2>Upload a CV, then find jobs ranked by job-specific ATS match.</h2>
+          <h2>Upload a CV, then compare it with jobs using explainable keyword similarity.</h2>
         </div>
         <button className="primary" onClick={upload}>
           <Plus size={17} />
@@ -1176,6 +1178,11 @@ function ResumesPage({
                     {Math.ceil(resume.size_bytes / 1024)} KB
                   </small>
                 </div>
+                <div className="resumeAtsScore" title="Internal ATS readiness estimate" aria-label={`ATS readiness ${typeof resume.score === "number" ? `${resume.score} percent` : "not available"}`}>
+                  <strong>{typeof resume.score === "number" ? resume.score : "—"}{typeof resume.score === "number" && <em>%</em>}</strong>
+                  <span><b>ATS readiness</b><small>{typeof resume.score === "number" ? (resume.score >= 85 ? "Excellent" : resume.score >= 70 ? "Strong" : resume.score >= 55 ? "Developing" : "Needs work") : "Not analyzed"}</small></span>
+                  <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={typeof resume.score === "number" ? resume.score : 0}><i style={{ width: `${typeof resume.score === "number" ? Math.max(0, Math.min(100, resume.score)) : 0}%` }} /></div>
+                </div>
               </div>
               {Boolean(resume.keywords?.length) && (
                 <div className="keywordList">
@@ -1192,6 +1199,7 @@ function ResumesPage({
                 Find suggested jobs for this CV
               </button>
               <h4>Resume quality feedback</h4>
+              <small>{resume.provider && resume.provider !== "heuristic" && resume.provider !== "statistical" ? `AI feedback: ${resume.provider}` : "Checklist feedback (AI fallback)"}. The readiness score is an internal estimate, not an employer ATS result.</small>
               <ul>
                 {[
                   ...(resume.strengths || []),
@@ -1200,6 +1208,18 @@ function ResumesPage({
                   <li key={item}>{item}</li>
                 ))}
               </ul>
+              {Boolean(resume.ats_breakdown?.length) && (
+                <details className="atsExplanation">
+                  <summary>How this readiness score is calculated</summary>
+                  <p className="atsNotice">This is CareerPilot&apos;s document-readiness estimate based on extracted text and standard resume checks. It is not a score returned by an employer&apos;s ATS.</p>
+                  {resume.ats_breakdown!.map((item) => (
+                    <div className="atsRow" key={item.key}>
+                      <div><b>{item.label}</b><small>{item.detail}</small></div>
+                      <strong>{item.earned}/{item.maximum}</strong>
+                    </div>
+                  ))}
+                </details>
+              )}
               {resume.content_preview && (
                 <details className="resumePreview">
                   <summary>Preview extracted CV text</summary>
@@ -1207,16 +1227,14 @@ function ResumesPage({
                 </details>
               )}
               <div className="resumeLinks">
-                {resume.storage_url && (
-                  <>
-                    <a href={viewUrl(resume)} target="_blank" rel="noreferrer">
-                      View resume <ArrowUpRight size={14} />
-                    </a>
-                    <a href={`/api/resumes/${resume.id}/download`}>
-                      Download original
-                    </a>
-                  </>
-                )}
+                <>
+                  <a href={viewUrl(resume)} target="_blank" rel="noreferrer">
+                    View resume <ArrowUpRight size={14} />
+                  </a>
+                  <a href={`/api/resumes/${resume.id}/download`}>
+                    Download original
+                  </a>
+                </>
                 <button
                   className="deleteResume"
                   onClick={() => {
@@ -1399,7 +1417,7 @@ function JobSearch({
         <div>
           <p>RESUME-MATCHED JOB SEARCH</p>
           <h1>Find suitable jobs</h1>
-          <h2>Each percentage is this CV's ATS match against that job.</h2>
+          <h2>Each percentage estimates keyword similarity between this CV and the available job text.</h2>
         </div>
       </div>
       <form
@@ -1762,6 +1780,10 @@ type ApplicationItem = {
   location?: string;
   job_url?: string;
   applied_at: string;
+  source?: string;
+  recruiter?: string;
+  follow_up_at?: string;
+  notes?: string;
 };
 function ApplicationsPage({ changed }: { changed: () => void }) {
   const [items, setItems] = useState<ApplicationItem[]>([]),
@@ -1807,7 +1829,7 @@ function ApplicationsPage({ changed }: { changed: () => void }) {
     <section className="modulePage">
       <div className="moduleHero">
         <span>
-          <FolderKanban />
+          <ApplicationFile />
         </span>
         <div>
           <p>APPLICATION TRACKER</p>
@@ -1826,6 +1848,10 @@ function ApplicationsPage({ changed }: { changed: () => void }) {
         <input name="role" placeholder="Role" required />
         <input name="location" placeholder="Location" />
         <input name="jobUrl" type="url" placeholder="Job URL" />
+        <input name="source" placeholder="Source (e.g. LinkedIn)" />
+        <input name="recruiter" placeholder="Recruiter / contact" />
+        <input name="followUpAt" type="date" aria-label="Follow-up date" />
+        <input name="notes" placeholder="Notes or next step" />
         <button>Add application</button>
       </form>
       {error && <div className="authMessage error">{error}</div>}
@@ -1843,7 +1869,7 @@ function ApplicationsPage({ changed }: { changed: () => void }) {
               value={item.stage}
               onChange={(e) => void stage(item.id, e.target.value)}
             >
-              {["Applied", "Interview", "Offer", "Rejected"].map((value) => (
+              {APPLICATION_STAGES.map((value) => (
                 <option key={value}>{value}</option>
               ))}
             </select>
@@ -1859,7 +1885,7 @@ function ApplicationsPage({ changed }: { changed: () => void }) {
         ))}
         {items.length === 0 && (
           <div className="moduleEmpty">
-            <FolderKanban />
+            <ApplicationFile />
             <h3>No applications yet</h3>
             <p>Add one above or use “Apply and track” from Job Search.</p>
           </div>
@@ -1989,149 +2015,6 @@ function WorkspaceItems({ kind }: { kind: "projects" | "certificates" }) {
   );
 }
 
-type ProfileDetails = Record<string, string>;
-type ProfileAccount = { id: string; name: string; email: string };
-
-function SettingsPage() {
-  const [profile, setProfile] = useState<ProfileDetails | null>(null),
-    [account, setAccount] = useState<ProfileAccount | null>(null),
-    [message, setMessage] = useState(""),
-    [error, setError] = useState(""),
-    [saving, setSaving] = useState(false);
-  useEffect(() => {
-    fetch("/api/profile")
-      .then(async (response) => {
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "Could not load profile.");
-        setProfile(data.profile);
-        setAccount(data.user);
-      })
-      .catch((reason) =>
-        setError(reason instanceof Error ? reason.message : "Could not load profile."),
-      );
-  }, []);
-  if (error && !profile) return <div className="moduleEmpty">{error}</div>;
-  if (!profile || !account) return <div className="moduleEmpty">Loading profile...</div>;
-
-  const fieldValue = (name: string) =>
-    profile[name] ||
-    profile[name.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)] ||
-    "";
-  const completionFields = [
-    account.name,
-    fieldValue("headline"),
-    fieldValue("location"),
-    fieldValue("phone"),
-    fieldValue("skills"),
-    fieldValue("bio"),
-    fieldValue("linkedinUrl"),
-    fieldValue("portfolioUrl"),
-  ];
-  const completion = Math.round(
-    (completionFields.filter((field) => Boolean(field.trim())).length /
-      completionFields.length) * 100,
-  );
-  const initials = account.name.split(/\s+/).slice(0, 2)
-    .map((part) => part[0]).join("").toUpperCase();
-
-  const save = async (form: HTMLFormElement) => {
-    setSaving(true);
-    setMessage("");
-    setError("");
-    const body = Object.fromEntries(new FormData(form));
-    try {
-      const response = await fetch("/api/profile", {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Could not save profile.");
-      setProfile(data.profile);
-      setAccount(data.user);
-      setMessage("Profile saved successfully.");
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not save profile.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <section className="modulePage profilePage">
-      <div className="profileBanner">
-        <div className="profileIdentity">
-          <div className="profileAvatar">{initials || "ME"}</div>
-          <div>
-            <p>CAREER PROFILE</p>
-            <h1>{account.name}</h1>
-            <h2>{fieldValue("headline") || "Add your professional headline"}</h2>
-            <span><Mail size={13} /> {account.email}</span>
-          </div>
-        </div>
-        <div className="profileCompletion">
-          <strong>{completion}%</strong>
-          <span>Profile complete</span>
-          <div><i style={{ width: `${completion}%` }} /></div>
-          <small>Complete your profile to improve your portfolio.</small>
-        </div>
-      </div>
-      <form
-        className="profileForm"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void save(e.currentTarget);
-        }}
-      >
-        <section className="profileSection">
-          <div className="profileSectionHead">
-            <UserRound />
-            <div><h2>Personal information</h2><p>Your basic account and contact details.</p></div>
-          </div>
-          <div className="profileFields">
-            <label>Full name<input name="fullName" defaultValue={account.name} minLength={2} maxLength={120} required /></label>
-            <label>Email address<input value={account.email} disabled /><small>Email cannot be changed here.</small></label>
-            <label><span><MapPin /> Location</span><input name="location" defaultValue={fieldValue("location")} placeholder="City, Country" /></label>
-            <label><span><Phone /> Phone number</span><input name="phone" type="tel" defaultValue={fieldValue("phone")} placeholder="+91 98765 43210" /></label>
-          </div>
-        </section>
-
-        <section className="profileSection">
-          <div className="profileSectionHead">
-            <BriefcaseBusiness />
-            <div><h2>Professional profile</h2><p>Information shown throughout your career portfolio.</p></div>
-          </div>
-          <div className="profileFields">
-            <label className="wide">Professional headline<input name="headline" defaultValue={fieldValue("headline")} placeholder="e.g. Full-stack developer and AI enthusiast" /></label>
-            <label className="wide">Core skills<input name="skills" defaultValue={fieldValue("skills")} placeholder="React, TypeScript, PostgreSQL, Product Design" /><small>Separate skills with commas.</small></label>
-            <label className="wide">Professional bio<textarea name="bio" defaultValue={fieldValue("bio")} maxLength={2000} placeholder="Describe your experience, strengths, and career goals." /></label>
-          </div>
-        </section>
-
-        <section className="profileSection">
-          <div className="profileSectionHead">
-            <Globe2 />
-            <div><h2>Professional links</h2><p>Connect recruiters with your work and online presence.</p></div>
-          </div>
-          <div className="profileFields">
-            <label><span><Link /> LinkedIn</span><input name="linkedinUrl" type="url" defaultValue={fieldValue("linkedinUrl")} placeholder="https://linkedin.com/in/username" /></label>
-            <label><span><Code2 /> GitHub</span><input name="githubUrl" type="url" defaultValue={fieldValue("githubUrl")} placeholder="https://github.com/username" /></label>
-            <label className="wide"><span><Globe2 /> Portfolio website</span><input name="portfolioUrl" type="url" defaultValue={fieldValue("portfolioUrl")} placeholder="https://yourportfolio.com" /></label>
-          </div>
-        </section>
-
-        <div className="profileActions">
-          <div>
-            {message && <span className="profileSaveMessage"><CircleCheck /> {message}</span>}
-            {error && <span className="profileSaveError">{error}</span>}
-          </div>
-          <button type="submit" disabled={saving}><Save /> {saving ? "Saving..." : "Save profile"}</button>
-        </div>
-      </form>
-    </section>
-  );
-}
-
 function PortfolioPage() {
   const [data, setData] = useState<any>(null);
   useEffect(() => {
@@ -2204,6 +2087,13 @@ function AnalyticsPage() {
       </div>
       <div className="analyticsGrid">
         <div className="resultCard">
+          <h3>Conversion funnel</h3>
+          <div className="metricRow"><span>Applications</span><b>{data.funnel.applications}</b></div>
+          <div className="metricRow"><span>Moved forward</span><b>{data.funnel.progressed} ({data.funnel.interview_rate}%)</b></div>
+          <div className="metricRow"><span>Offers</span><b>{data.funnel.offers} ({data.funnel.offer_rate}%)</b></div>
+          <div className="metricRow"><span>Follow-ups due</span><b>{data.funnel.follow_ups_due}</b></div>
+        </div>
+        <div className="resultCard">
           <h3>Application stages</h3>
           {data.stages.map((item: any) => (
             <div className="metricRow" key={item.stage}>
@@ -2238,6 +2128,12 @@ function AnalyticsPage() {
             <span>Cover letters</span>
             <b>{data.totals.cover_letters}</b>
           </div>
+        </div>
+        <div className="resultCard">
+          <h3>Applications by month</h3>
+          {data.activity.length ? data.activity.map((item: any) => (
+            <div className="metricRow" key={item.month}><span>{item.month}</span><b>{item.count}</b></div>
+          )) : <p>No application activity in the last six months.</p>}
         </div>
       </div>
     </section>

@@ -1,0 +1,10 @@
+alter table profiles add column if not exists avatar_data_url text;
+alter table profiles add column if not exists job_title text;
+alter table profiles add column if not exists summary text;
+alter table profiles add column if not exists skills_json jsonb not null default '[]'::jsonb;
+alter table profiles add column if not exists experience_json jsonb not null default '[]'::jsonb;
+alter table profiles add column if not exists education_json jsonb not null default '[]'::jsonb;
+alter table profiles add column if not exists languages_json jsonb not null default '[]'::jsonb;
+alter table profiles add column if not exists links_json jsonb not null default '[]'::jsonb;
+alter table profiles add column if not exists hobbies_json jsonb not null default '[]'::jsonb;
+alter table profiles add column if not exists achievements_json jsonb not null default '[]'::jsonb;

@@ -42,3 +42,67 @@ export async function extractResumeKeywordsWithAI(resumeText: string) {
   const keywords = [...new Set(parsed.map(value => String(value).trim().toLowerCase()).filter(value => value.length >= 2 && value.length <= 60))].slice(0, 12);
   return { keywords, provider: result.provider };
 }
+
+export async function extractJobKeywordsWithAI(jobDescription: string) {
+  const result = await generateCareerAdvice([
+    {
+      role: 'system',
+      content: 'Extract ATS keywords explicitly present in the job description. Return only a JSON array of 10 to 50 concise canonical terms. Prioritize required and preferred skills, technologies, frameworks, methods, cloud platforms, domain expertise, deployment practices, collaboration requirements, and explicit qualifications. Preserve meaningful phrases such as Large Language Models (LLMs), Model Context Protocol (MCP), and feature engineering. Exclude employer names, locations, salary, dates, navigation text, calls to apply, promotional copy, article titles, case studies, and generic words such as job, company, role, work, experience, knowledge, performance, or skills. Never infer a term that is absent from the supplied text.',
+    },
+    { role: 'user', content: jobDescription.slice(0, 18_000) },
+  ], { maxTokens: 1800 });
+  const json = result.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+  const parsed = JSON.parse(json);
+  if (!Array.isArray(parsed)) throw new Error('AI job keyword response was not an array');
+  const keywords = [...new Set(parsed.map(value => String(value).trim()).filter(value => value.length >= 2 && value.length <= 80))].slice(0, 50);
+  if (!keywords.length) throw new Error('AI job keyword response was empty');
+  return { keywords, provider: result.provider };
+}
+
+export async function tailorProfessionalSummaryWithAI(input: {
+  targetRole: string;
+  jobDescription: string;
+  currentSummary: string;
+  evidence: string;
+}) {
+  const result = await generateCareerAdvice([
+    {
+      role: 'system',
+      content: 'Write one ATS-friendly professional summary for a resume. Return only the summary as plain text, with no heading, bullets, markdown, quotation marks, or commentary. Use 55 to 90 words in 3 to 4 concise sentences. Align it with the target role and the most important job-description keywords only when supported by the candidate evidence. Preserve truthful qualifications and measurable facts. Do not invent years of experience, employers, tools, achievements, certifications, or domain expertise. Avoid first-person pronouns, keyword stuffing, and generic claims.',
+    },
+    {
+      role: 'user',
+      content: `TARGET ROLE:\n${input.targetRole || 'Not specified'}\n\nJOB DESCRIPTION:\n${input.jobDescription.slice(0, 10_000)}\n\nCURRENT SUMMARY:\n${input.currentSummary.slice(0, 2_500)}\n\nCANDIDATE EVIDENCE:\n${input.evidence.slice(0, 10_000)}`,
+    },
+  ], { maxTokens: 700 });
+  const summary = result.text
+    .replace(/^```(?:text)?\s*/i, '')
+    .replace(/\s*```$/, '')
+    .replace(/^['"]|['"]$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const wordCount = summary.split(/\s+/).filter(Boolean).length;
+  if (wordCount < 35 || wordCount > 120) throw new Error('AI professional summary had an invalid length');
+  return { summary, provider: result.provider };
+}
+
+type ResumeReview = { strengths: string[]; improvements: string[]; keywords: string[] };
+
+export async function reviewResumeWithAI(resumeText: string, jobDescription = '') {
+  const result = await generateCareerAdvice([
+    { role: 'system', content: 'Review the supplied resume using only its text. Return only valid JSON with arrays named strengths, improvements, and keywords. Give 2-5 specific strengths and 2-5 actionable improvements. Keywords must contain 5-12 skills, tools, methods, or domains explicitly present in the resume. Do not invent facts and do not claim to represent an employer ATS.' },
+    { role: 'user', content: `RESUME:\n${resumeText.slice(0, 18_000)}${jobDescription ? `\n\nOPTIONAL JOB DESCRIPTION:\n${jobDescription.slice(0, 10_000)}` : ''}` },
+  ], { maxTokens: 1400 });
+  const json = result.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+  const parsed = JSON.parse(json) as Partial<ResumeReview>;
+  const clean = (value: unknown, limit: number) => Array.isArray(value)
+    ? [...new Set(value.map(item => String(item).trim()).filter(item => item.length >= 2 && item.length <= 300))].slice(0, limit)
+    : [];
+  const review = {
+    strengths: clean(parsed.strengths, 5),
+    improvements: clean(parsed.improvements, 5),
+    keywords: clean(parsed.keywords, 12).map(value => value.toLowerCase()),
+  };
+  if (!review.strengths.length || !review.improvements.length) throw new Error('AI resume review was incomplete');
+  return { ...review, provider: result.provider };
+}

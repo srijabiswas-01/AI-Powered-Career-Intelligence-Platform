@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   if (!task || task.length > 500 || context.length > 20_000) return apiError('Provide a valid task and context.');
   try {
     const result = await generateCareerAdvice([
-      { role: 'system', content: 'You are Clymbra, a concise career coach. Give factual, actionable advice. Never invent candidate experience.' },
+      { role: 'system', content: 'You are CareerPilot, a concise career coach. Give factual, actionable advice. Never invent candidate experience.' },
       { role: 'user', content: `${task}\n\nCandidate context:\n${context}` },
     ]);
     return NextResponse.json(result);

@@ -4,6 +4,7 @@ import { getSessionUser } from '@/lib/auth';
 import { analyzeResumeText, extractStatisticalKeywords } from '@/lib/ats';
 import { database } from '@/lib/db';
 import { apiError } from '@/lib/http';
+import { extractJobKeywords, resumeContainsKeyword } from '@/lib/job-keywords';
 
 type Job = { id: string; title: string; company: string; location: string; description: string; url: string; source: string; createdAt?: string; matchScore?: number; matchedKeywords?: string[] };
 
@@ -36,6 +37,7 @@ export async function GET(request: Request) {
   if (resumeId) {
     const [resume] = await database<{ content: string | null }[]>`select content from resumes where id = ${resumeId} and user_id = ${user.id}`;
     if (!resume) return apiError('Resume not found.', 404);
+    if (!resume.content || resume.content.length < 80) return apiError('This resume has no usable extracted text. Upload a text-based PDF, DOCX, or clearer scan.', 422);
     resumeText = (resume.content || '').toLowerCase();
     resumeKeywords = analyzeResumeText(resume.content || '').keywords.slice(0, 10);
     if (resumeKeywords.length) query = resumeKeywords.slice(0, 5).join(' ');
@@ -61,8 +63,8 @@ export async function GET(request: Request) {
   const settled = await Promise.allSettled(tasks);
   const jobs = settled.flatMap(result => result.status === 'fulfilled' ? result.value : []).map(job => {
     if (!resumeKeywords.length) return job;
-    const jobKeywords = extractStatisticalKeywords(`${job.title} ${job.description}`, 20, 1);
-    const matchedKeywords = jobKeywords.filter(keyword => resumeText.includes(keyword.toLowerCase()));
+    const jobKeywords = extractJobKeywords(`${job.title} ${job.description}`, 40);
+    const matchedKeywords = jobKeywords.filter(keyword => resumeContainsKeyword(resumeText, keyword));
     const titleTerms = extractStatisticalKeywords(job.title, 5, 1);
     const titleMatches = titleTerms.filter(keyword => resumeText.includes(keyword.toLowerCase())).length;
     const keywordScore = jobKeywords.length ? Math.round(matchedKeywords.length / jobKeywords.length * 85) : 0;

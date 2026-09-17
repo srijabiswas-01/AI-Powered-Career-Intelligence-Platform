@@ -1,3 +1,5 @@
+import { extractJobKeywords, resumeContainsKeyword } from './job-keywords';
+
 const stopWords = new Set('a an and are as at be been by for from has have in into is it its of on or that the their this to was were will with you your our we they them who'.split(' '));
 
 export function extractStatisticalKeywords(value: string, limit = 10, minimumCount = 2) {
@@ -19,8 +21,8 @@ export function analyzeResumeText(value: string, jobDescription = '') {
   const structuralSections = ['experience', 'education', 'skills', 'summary', 'projects'];
   const foundSections = structuralSections.filter(section => new RegExp(`(^|\\n)\\s*${section}\\s*[:\\n]`, 'i').test(value) || text.includes(`${section}:`));
   const words = text.match(/[a-z][a-z+#.]{2,}/g) ?? [];
-  const jobKeywords = extractStatisticalKeywords(jobDescription, 20);
-  const matchedJobKeywords = jobKeywords.filter(keyword => text.includes(keyword));
+  const jobKeywords = extractJobKeywords(jobDescription, 60);
+  const matchedJobKeywords = jobKeywords.filter(keyword => resumeContainsKeyword(value, keyword));
   const hasMetrics = /\b\d+(?:\.\d+)?%|\b\d+[kmb]?\b/.test(text);
   const hasEmail = /[\w.+-]+@[\w.-]+\.[a-z]{2,}/i.test(value);
   const hasPhone = /(?:\+?\d[\d\s()-]{7,}\d)/.test(value);

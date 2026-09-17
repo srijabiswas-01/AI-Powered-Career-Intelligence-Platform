@@ -1,6 +1,6 @@
-# Clymbra AI — AI-Powered Career Intelligence Platform
+# CareerPilot AI — AI-Powered Career Intelligence Platform
 
-Clymbra AI is a full-stack career workspace for analyzing resumes, finding suitable jobs, generating tailored resumes and cover letters, tracking applications, and maintaining a professional career portfolio.
+CareerPilot AI is a full-stack career workspace for analyzing resumes, finding suitable jobs, generating tailored resumes and cover letters, tracking applications, and maintaining a professional career portfolio.
 
 The application uses Next.js, Neon PostgreSQL, Groq/OpenRouter, Adzuna, Jooble, and Cloudinary. Resume analyses and generated documents are persisted for future use.
 
@@ -101,7 +101,7 @@ scripts/migrate.mjs       Database migration runner
 
 ## Requirements
 
-- Node.js 20 or newer
+- Node.js 20.16 or newer
 - npm
 - A Neon PostgreSQL project
 - At least one configured AI provider
@@ -124,7 +124,8 @@ scripts/migrate.mjs       Database migration runner
 | `CLOUDINARY_CLOUD_NAME` | Recommended | Cloudinary account cloud name |
 | `CLOUDINARY_API_KEY` | Recommended | Cloudinary API key |
 | `CLOUDINARY_API_SECRET` | Recommended | Cloudinary API secret |
-| `HUGGINGFACE_API_KEY` | No | Reserved for future inference or embeddings |
+| `HUGGINGFACE_API_KEY` | Recommended | OCR fallback for scanned/image-only PDF resumes |
+| `HUGGINGFACE_OCR_MODEL` | No | Vision model for OCR; defaults to `Qwen/Qwen2.5-VL-3B-Instruct` |
 
 Use the pooled Neon connection URL whose hostname contains `-pooler`. Never prefix server secrets with `NEXT_PUBLIC_`.
 
@@ -185,7 +186,7 @@ Supported formats:
 - Microsoft Word (`.docx`)
 - Plain text (`.txt`)
 
-Password-protected, corrupted, or image-only PDFs may not contain extractable text. Convert scanned documents with OCR before uploading.
+Scanned/image-only PDFs use the configured Hugging Face OCR fallback (up to the first two pages). Password-protected or corrupted PDFs cannot be read.
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for the focused deployment checklist and [BACKEND.md](BACKEND.md) for backend notes.
 
@@ -238,7 +239,7 @@ If a database URL or API key is pasted into chat, committed, included in screens
 
 ### Purpose
 
-Clymbra AI is a career-focused Management Information System. It collects career data, processes it using AI and external services, stores the results, and presents useful information that supports employment and career-management decisions.
+CareerPilot AI is a career-focused Management Information System. It collects career data, processes it using AI and external services, stores the results, and presents useful information that supports employment and career-management decisions.
 
 The system helps users:
 
@@ -382,4 +383,4 @@ flowchart LR
 
 ### MIS conclusion
 
-Clymbra AI is a career-oriented Management Information System because it transforms raw resume, profile, job, and application data into meaningful information such as ATS scores, job matches, tailored documents, and career analytics. These outputs help users make informed career decisions and monitor their progress from a centralized workspace.
+CareerPilot AI is a career-oriented Management Information System because it transforms raw resume, profile, job, and application data into meaningful information such as ATS scores, job matches, tailored documents, and career analytics. These outputs help users make informed career decisions and monitor their progress from a centralized workspace.

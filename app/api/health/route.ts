@@ -6,15 +6,11 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const [result] = await database<[{ database: string; timestamp: Date }]>`
-      select current_database() as database, now() as timestamp
+    const [result] = await database<[{ timestamp: Date }]>`
+      select now() as timestamp
     `;
 
-    return NextResponse.json({
-      status: 'ok',
-      database: result.database,
-      timestamp: result.timestamp,
-    });
+    return NextResponse.json({ status: 'ok', timestamp: result.timestamp });
   } catch (error) {
     console.error('Database health check failed', error);
 

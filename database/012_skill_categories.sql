@@ -1,0 +1,1 @@
+alter table profiles add column if not exists skill_categories_json jsonb not null default '["Programming","Data Analysis","Visualization","Databases","Machine Learning","AI","Automation","Cloud","Tools","Soft Skills","Other"]'::jsonb;
