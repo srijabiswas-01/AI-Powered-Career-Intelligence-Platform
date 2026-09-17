@@ -37,6 +37,8 @@ import {
   Link,
   Code2,
   Save,
+  Eye,
+  EyeSlash,
 } from "./bootstrap-icons";
 import { APPLICATION_STAGES } from "@/lib/applications";
 import ProfessionalProfileSettings from "./profile-settings";
@@ -919,10 +921,14 @@ function LoginScreen({
                   required
                 />
                 <button
+                  className="passwordToggle"
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                  title={showPassword ? "Hide password" : "Show password"}
                 >
-                  {showPassword ? "Hide" : "Show"}
+                  {showPassword ? <EyeSlash size={16} /> : <Eye size={16} />}
                 </button>
               </div>
             </label>
@@ -943,13 +949,15 @@ function LoginScreen({
               ? "Don't have an account? "
               : "Already have an account? "}
             <button
+              className="switchAuthButton"
+              type="button"
               onClick={() => {
                 setMode(mode === "login" ? "signup" : "login");
                 setError("");
                 setSuccess("");
               }}
             >
-              {mode === "login" ? "Create one" : "Sign in"}
+              {mode === "login" ? "Create an account" : "Back to sign in"}
             </button>
           </p>
           <small className="terms">
