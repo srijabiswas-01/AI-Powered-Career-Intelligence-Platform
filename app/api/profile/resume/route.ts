@@ -37,8 +37,8 @@ async function generateResume(request: Request) {
   const selectedCertificates = new Set(certificateIds);
   const targetRole = String(body?.targetRole || params.get('role') || profile.job_title || profile.headline || '').slice(0, 150);
   const jobDescription = String(body?.jobDescription || '').trim().slice(0, 12_000);
-  const allProjects = await database<any[]>`select id,title,description,technologies,project_url from projects where user_id=${user.id} order by created_at desc`;
-  const allCertificates = await database<any[]>`select id,name,issuer,issued_at,credential_url from certificates where user_id=${user.id} order by issued_at desc nulls last, created_at desc`;
+  const allProjects = await database<any[]>`select id,title,description,technologies,project_url,role,start_date,end_date,outcomes,include_in_cv from projects where user_id=${user.id} and include_in_cv=true order by created_at desc`;
+  const allCertificates = await database<any[]>`select id,name,issuer,issued_at,credential_url,credential_id,expires_at,skills,include_in_cv from certificates where user_id=${user.id} and include_in_cv=true order by issued_at desc nulls last, created_at desc`;
   const projects = Array.isArray(body?.projectIds) || params.has('projects') ? allProjects.filter(item => selectedProjects.has(String(item.id))) : allProjects;
   const certificates = Array.isArray(body?.certificateIds) || params.has('certificates') ? allCertificates.filter(item => selectedCertificates.has(String(item.id))) : allCertificates;
   if (!profile.summary || !skills.length || (!experience.length && !education.length)) return apiError('Add a summary, skills, and experience or education before generating your CV.', 422);
@@ -51,8 +51,8 @@ async function generateResume(request: Request) {
       `Skills: ${skills.map((item: any) => item.name).filter(Boolean).join(', ')}`,
       ...experience.map((item: any) => `Experience: ${item.title || ''} | ${item.company || ''} | ${item.description || ''}`),
       ...education.map((item: any) => `Education: ${item.degree || ''} ${item.field || ''} | ${item.institution || ''} | ${item.grade || ''}`),
-      ...projects.map((item: any) => `Project: ${item.title || ''} | ${item.technologies || ''} | ${item.description || ''}`),
-      ...certificates.map((item: any) => `Certification: ${item.name || ''} | ${item.issuer || ''}`),
+      ...projects.map((item: any) => `Project: ${item.title || ''} | Role: ${item.role || ''} | Technologies: ${item.technologies || ''} | ${item.description || ''} | Outcomes: ${item.outcomes || ''}`),
+      ...certificates.map((item: any) => `Certification: ${item.name || ''} | ${item.issuer || ''} | Skills: ${item.skills || ''} | Credential ID: ${item.credential_id || ''}`),
       ...achievements.map((item: any) => `Achievement: ${item.name || ''}`),
       ...publications.map((item: any) => `Publication: ${item.title || ''} | ${item.type || ''} | ${item.status || ''}`),
     ].filter(Boolean).join('\n');
@@ -67,9 +67,9 @@ async function generateResume(request: Request) {
   for (const skill of skills) grouped.set(skill.category || 'Other', [...(grouped.get(skill.category || 'Other') || []), skill.name]);
   content.push('TECHNICAL SKILLS', ...[...grouped].map(([category, values]) => `${category}: ${values.join(', ')}`));
   if (experience.length) { content.push('PROFESSIONAL EXPERIENCE'); for (const item of [...experience].sort((a, b) => String(b.startDate).localeCompare(String(a.startDate)))) { content.push(`${item.title}${item.company ? ` | ${item.company}` : ''}${item.location ? ` | ${item.location}` : ''}`, `${month(item.startDate)} – ${item.current ? 'Present' : month(item.endDate)}`, ...lines(item.description).map(line => `- ${line.replace(/^[-•]\s*/, '')}`)); } }
-  if (projects.length) { content.push('PROJECTS'); for (const item of projects) { content.push(`${item.title}${item.technologies ? ` | ${item.technologies}` : ''}${item.project_url ? ` | ${embeddedLink('GitHub / Demo', item.project_url)}` : ''}`, ...lines(item.description).map(line => `- ${line.replace(/^[-•]\s*/, '')}`)); } }
+  if (projects.length) { content.push('PROJECTS'); for (const item of projects) { content.push(`${item.title}${item.role ? ` | ${item.role}` : ''}${item.technologies ? ` | ${item.technologies}` : ''}${item.project_url ? ` | ${embeddedLink('GitHub / Demo', item.project_url)}` : ''}`, [item.start_date && `${month(item.start_date)} – ${month(item.end_date) || 'Present'}`].filter(Boolean).join(''), ...lines(item.description).map(line => `- ${line.replace(/^[-•]\s*/, '')}`), ...lines(item.outcomes).map(line => `- Outcome: ${line.replace(/^[-•]\s*/, '')}`)); } }
   if (education.length) { content.push('EDUCATION'); for (const item of [...education].sort((a, b) => String(b.endDate).localeCompare(String(a.endDate)))) { content.push(`${item.degree}${item.field ? ` in ${item.field}` : ''}${item.institution ? ` | ${item.institution}` : ''}`, [item.startDate && `${month(item.startDate)} – ${month(item.endDate) || 'Present'}`, item.grade, item.location].filter(Boolean).join(' | '), ...lines(item.description).map(line => `- ${line.replace(/^[-•]\s*/, '')}`)); } }
-  if (certificates.length) content.push('CERTIFICATIONS', certificates.map((item: any) => `${item.credential_url ? embeddedLink(item.name, item.credential_url) : item.name}${item.issuer ? ` — ${item.issuer}` : ''}${item.issued_at ? ` (${String(item.issued_at).slice(0, 10)})` : ''}`).join('  |  '));
+  if (certificates.length) content.push('CERTIFICATIONS', ...certificates.map((item: any) => `${item.credential_url ? embeddedLink(item.name, item.credential_url) : item.name}${item.issuer ? ` — ${item.issuer}` : ''}${item.issued_at ? ` (${String(item.issued_at).slice(0, 10)})` : ''}${item.expires_at ? ` | Expires ${String(item.expires_at).slice(0, 10)}` : ''}${item.credential_id ? ` | Credential ID: ${item.credential_id}` : ''}${item.skills ? ` | Skills: ${item.skills}` : ''}`));
   if (achievements.length) content.push('ACHIEVEMENTS', ...achievements.map((item: any) => `- ${item.name}`));
   if (publications.length) content.push('RESEARCH & PUBLICATIONS', ...publications.map((item: any) => `- ${item.url ? embeddedLink(item.title, item.url) : item.title}${item.type ? ` | ${item.type}` : ''}${item.status ? ` | ${item.status}` : ''}${item.publisher ? ` | ${item.publisher}` : ''}${item.date ? ` | ${item.date}` : ''}`));
   if (languages.length) content.push('LANGUAGES', languages.map((item: any) => `${item.name}${item.level ? ` (${item.level})` : ''}`).join(', '));

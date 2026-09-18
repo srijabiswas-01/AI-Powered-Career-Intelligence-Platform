@@ -159,9 +159,9 @@ const modules: Record<string, { text: string; action: string }> = {
     text: "Understand your applications, ATS performance, and career momentum.",
     action: "Export report",
   },
-  Settings: {
+  "CV Builder": {
     text: "Manage your profile, preferences, connected accounts, and privacy.",
-    action: "Save settings",
+    action: "Save CV builder changes",
   },
 };
 
@@ -371,9 +371,9 @@ export default function Home() {
           ))}
         </nav>
         <div className="sidebarBottom">
-          <button onClick={() => go("Settings")}>
-            <Settings size={18} />
-            Settings
+          <button onClick={() => go("CV Builder")}>
+            <FileText size={18} />
+            CV Builder
           </button>
           <button
             className="profile"
@@ -395,7 +395,7 @@ export default function Home() {
           </button>
           {profileOpen && (
             <div className="profileMenu">
-              <button onClick={() => go("Settings")}>Account settings</button>
+              <button onClick={() => go("CV Builder")}>CV Builder</button>
               <button onClick={logout}>Sign out</button>
             </div>
           )}
@@ -683,13 +683,13 @@ export default function Home() {
                     <i style={{ width: "0%" }} />
                   </div>
                   <div className="checks">
-                    <button className="missing" onClick={() => go("Settings")}>
+                    <button className="missing" onClick={() => go("CV Builder")}>
                       <Plus /> Add personal information
                     </button>
-                    <button className="missing" onClick={() => go("Settings")}>
+                    <button className="missing" onClick={() => go("CV Builder")}>
                       <Plus /> Add work experience
                     </button>
-                    <button className="missing" onClick={() => go("Settings")}>
+                    <button className="missing" onClick={() => go("CV Builder")}>
                       <Plus /> Add skills
                     </button>
                     <button
@@ -753,7 +753,7 @@ export default function Home() {
             <PortfolioPage />
           ) : active === "Analytics" ? (
             <AnalyticsPage />
-          ) : active === "Settings" ? (
+          ) : active === "CV Builder" ? (
             <ProfessionalProfileSettings />
           ) : (
             <ModulePage
@@ -1909,11 +1909,24 @@ type GenericItem = {
   description?: string;
   technologies?: string;
   project_url?: string;
+  role?: string;
+  start_date?: string;
+  end_date?: string;
+  outcomes?: string;
   name?: string;
   issuer?: string;
   issued_at?: string;
   credential_url?: string;
+  credential_id?: string;
+  expires_at?: string;
+  skills?: string;
+  include_in_cv?: boolean;
 };
+
+function WorkspaceCvToggle({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
+  return <label className="cvToggle" title={checked ? "Included in generated CV" : "Saved in workspace but hidden from CV"}><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} /><span /><b>{checked ? "In CV" : "Hidden"}</b></label>;
+}
+
 function WorkspaceItems({ kind }: { kind: "projects" | "certificates" }) {
   const [items, setItems] = useState<GenericItem[]>([]),
     [error, setError] = useState("");
@@ -1944,6 +1957,11 @@ function WorkspaceItems({ kind }: { kind: "projects" | "certificates" }) {
     await fetch(`/api/${kind}/${id}`, { method: "DELETE" });
     await load();
   };
+  const toggleCv = async (item: GenericItem, includeInCv: boolean) => {
+    const response = await fetch(`/api/${kind}/${item.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ includeInCv }) });
+    if (!response.ok) { setError("Could not update CV visibility."); return; }
+    setItems(items.map(value => value.id === item.id ? { ...value, include_in_cv: includeInCv } : value));
+  };
   const Icon = certificate ? Award : FolderKanban;
   return (
     <section className="modulePage">
@@ -1973,13 +1991,20 @@ function WorkspaceItems({ kind }: { kind: "projects" | "certificates" }) {
             <input name="name" placeholder="Certificate name" required />
             <input name="issuer" placeholder="Issuer" required />
             <input name="issuedAt" type="date" />
+            <input name="expiresAt" type="date" aria-label="Expiry date" />
+            <input name="credentialId" placeholder="Credential ID" />
+            <input name="skills" placeholder="Skills covered (Python, SQL, ... )" />
             <input name="url" type="url" placeholder="Credential URL" />
           </>
         ) : (
           <>
             <input name="title" placeholder="Project title" required />
-            <input name="description" placeholder="Description" required />
+            <input name="role" placeholder="Your role (e.g. Data Analyst)" />
+            <input name="startDate" type="date" aria-label="Start date" />
+            <input name="endDate" type="date" aria-label="End date" />
             <input name="technologies" placeholder="Technologies" />
+            <input name="description" placeholder="What you built or analyzed" required />
+            <input name="outcomes" placeholder="Outcomes (metrics, scale, time saved)" />
             <input name="url" type="url" placeholder="Project URL" />
           </>
         )}
@@ -1993,10 +2018,11 @@ function WorkspaceItems({ kind }: { kind: "projects" | "certificates" }) {
               <h3>{certificate ? item.name : item.title}</h3>
               <p>
                 {certificate
-                  ? `${item.issuer}${item.issued_at ? ` · ${item.issued_at}` : ""}`
-                  : `${item.description}${item.technologies ? ` · ${item.technologies}` : ""}`}
+                  ? `${item.issuer}${item.issued_at ? ` · Issued ${item.issued_at}` : ""}${item.expires_at ? ` · Expires ${item.expires_at}` : ""}${item.skills ? ` · ${item.skills}` : ""}`
+                  : `${item.role ? `${item.role} · ` : ""}${item.description}${item.technologies ? ` · ${item.technologies}` : ""}${item.outcomes ? ` · ${item.outcomes}` : ""}`}
               </p>
             </div>
+            <WorkspaceCvToggle checked={item.include_in_cv !== false} onChange={(checked) => void toggleCv(item, checked)} />
             {(certificate ? item.credential_url : item.project_url) && (
               <a
                 href={(certificate ? item.credential_url : item.project_url)!}
@@ -2037,7 +2063,7 @@ function PortfolioPage() {
         <p>PROFESSIONAL PORTFOLIO</p>
         <h1>{data.user.name}</h1>
         <h2>
-          {data.profile.headline || "Add a professional headline in Settings"}
+          {data.profile.headline || "Add a professional headline in CV Builder"}
         </h2>
         <span>{data.profile.location}</span>
         <p>{data.profile.bio}</p>
