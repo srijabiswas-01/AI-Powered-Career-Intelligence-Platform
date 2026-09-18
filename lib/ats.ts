@@ -8,6 +8,7 @@ export type CvBuilderAudit = {
 };
 
 const stopWords = new Set('a an and are as at be been by for from has have in into is it its of on or that the their this to was were will with you your our we they them who'.split(' '));
+const jobNoiseWords = new Set('about across also can candidate candidates company looking must need position role responsibilities responsible required requirements seeking should team teams work working year years preferred including use using ability able join strong excellent ideal plus relevant support develop development build built create creating manage management provide knowledge skills experience'.split(' '));
 
 export function extractStatisticalKeywords(value: string, limit = 10, minimumCount = 2) {
   const tokens = (value.toLowerCase().match(/[a-z][a-z0-9+#.-]{2,}/g) ?? []).filter(word => !stopWords.has(word) && !/^\d/.test(word));
@@ -23,12 +24,34 @@ export function extractStatisticalKeywords(value: string, limit = 10, minimumCou
   return [...phrases, ...words].sort((a, b) => b.score - a.score || b.keyword.length - a.keyword.length).map(item => item.keyword).filter((keyword, index, all) => !all.slice(0, index).some(existing => existing.includes(keyword))).slice(0, limit);
 }
 
+export function extractAtsKeywords(value: string, limit = 60) {
+  const known = extractJobKeywords(value, limit);
+  const tokens = value.toLowerCase().match(/[a-z][a-z0-9+#./-]{1,}/g) ?? [];
+  const meaningful = (token: string) => !stopWords.has(token) && !jobNoiseWords.has(token) && !/^\d/.test(token) && token.length >= 2;
+  const filteredTokens = tokens.filter(meaningful);
+  const counts = new Map<string, number>();
+  filteredTokens.forEach(token => counts.set(token, (counts.get(token) || 0) + 1));
+  for (let index = 0; index < tokens.length - 1; index += 1) {
+    const first = tokens[index], second = tokens[index + 1];
+    if (meaningful(first) && meaningful(second)) {
+      const phrase = `${first} ${second}`;
+      counts.set(phrase, (counts.get(phrase) || 0) + 2);
+    }
+  }
+  const generic = [...counts]
+    .sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)
+    .map(([token]) => token)
+    .filter(token => !known.some(keyword => keyword.toLowerCase() === token || keyword.toLowerCase().includes(` ${token}`)))
+    .slice(0, Math.max(0, limit - known.length));
+  return [...known, ...generic];
+}
+
 export function analyzeResumeText(value: string, jobDescription = '') {
   const text = value.toLowerCase();
   const structuralSections = ['experience', 'education', 'skills', 'summary', 'projects'];
   const foundSections = structuralSections.filter(section => new RegExp(`(^|\\n)\\s*${section}\\s*[:\\n]`, 'i').test(value) || text.includes(`${section}:`));
   const words = text.match(/[a-z][a-z+#.]{2,}/g) ?? [];
-  const jobKeywords = extractJobKeywords(jobDescription, 60);
+  const jobKeywords = extractAtsKeywords(jobDescription, 60);
   const matchedJobKeywords = jobKeywords.filter(keyword => resumeContainsKeyword(value, keyword));
   const hasMetrics = /\b\d+(?:\.\d+)?%|\b\d+[kmb]?\b/.test(text);
   const hasEmail = /[\w.+-]+@[\w.-]+\.[a-z]{2,}/i.test(value);
@@ -77,12 +100,19 @@ export function analyzeCvBuilder(input: {
 }) : CvBuilderAudit {
   const { text, jobDescription, targetRole, email, phone } = input;
   const normalizedText = text.toLowerCase();
-  const jobKeywords = extractJobKeywords(jobDescription, 60);
+  const jobKeywords = extractAtsKeywords(jobDescription, 60);
   const matchedKeywords = jobKeywords.filter(keyword => resumeContainsKeyword(text, keyword));
   const missingKeywords = jobKeywords.filter(keyword => !resumeContainsKeyword(text, keyword));
   const words = normalizedText.match(/[a-z][a-z+#.]{2,}/g) ?? [];
-  const sections = ['professional summary', 'technical skills', 'professional experience', 'projects', 'education', 'certifications'];
-  const foundSections = sections.filter(section => normalizedText.includes(section));
+  const sectionAliases: Record<string, string[]> = {
+    summary: ['professional summary', 'summary', 'profile'],
+    skills: ['technical skills', 'core skills', 'skills'],
+    experience: ['professional experience', 'work experience', 'experience'],
+    projects: ['selected projects', 'projects'],
+    education: ['education'],
+    certifications: ['certifications', 'certificates'],
+  };
+  const foundSections = Object.entries(sectionAliases).filter(([, aliases]) => aliases.some(alias => normalizedText.includes(alias))).map(([section]) => section);
   const metrics = /\b\d+(?:\.\d+)?%|\b\d+[kmb+]?\b/i.test(text);
   const contextSkills = jobKeywords.filter(keyword => resumeContainsKeyword(text, keyword)).filter(keyword => {
     const first = normalizedText.indexOf(keyword.toLowerCase());
@@ -90,14 +120,16 @@ export function analyzeCvBuilder(input: {
   });
   const roleWords = targetRole.toLowerCase().split(/[^a-z0-9]+/).filter(word => word.length > 2);
   const roleMatches = roleWords.filter(word => normalizedText.includes(word)).length;
+  const formattingPoints = words.length && !/\t| {4,}/.test(text) ? 5 : 0;
   const checks = [
     { key: 'keywords', label: 'Job-description keywords', earned: jobKeywords.length ? Math.round(matchedKeywords.length / jobKeywords.length * 25) : 0, maximum: 25, detail: jobKeywords.length ? `${matchedKeywords.length} of ${jobKeywords.length} recognized terms matched.` : 'Paste a complete job description to measure relevance.' },
-    { key: 'sections', label: 'Standard ATS sections', earned: Math.round(foundSections.length / sections.length * 15), maximum: 15, detail: `${foundSections.length} of ${sections.length} standard sections detected.` },
+    { key: 'sections', label: 'Standard ATS sections', earned: Math.round(foundSections.length / Object.keys(sectionAliases).length * 15), maximum: 15, detail: `${foundSections.length} of ${Object.keys(sectionAliases).length} standard sections detected${foundSections.length ? `: ${foundSections.join(', ')}.` : '.'}` },
     { key: 'context', label: 'Keyword context', earned: jobKeywords.length ? Math.min(15, Math.round(contextSkills.length / jobKeywords.length * 15)) : 0, maximum: 15, detail: contextSkills.length ? `${contextSkills.length} matched terms appear near action or usage language.` : 'Show how skills were used in experience or projects.' },
     { key: 'title', label: 'Target title alignment', earned: roleWords.length ? Math.round(roleMatches / roleWords.length * 10) : 0, maximum: 10, detail: roleWords.length ? `${roleMatches} of ${roleWords.length} target-title terms found.` : 'Add a target role for title alignment.' },
     { key: 'qualifications', label: 'Education and credentials', earned: Math.min(10, (input.educationCount ? 6 : 0) + (input.certificateCount ? 4 : 0)), maximum: 10, detail: `${input.educationCount ? 'Education present' : 'Education missing'}; ${input.certificateCount ? 'certifications present' : 'certifications missing'}.` },
     { key: 'evidence', label: 'Measured achievements', earned: Math.min(10, (metrics ? 5 : 0) + (input.bulletCount >= 3 ? 5 : input.bulletCount ? 2 : 0)), maximum: 10, detail: metrics ? 'Numbers or percentages found; keep them tied to genuine outcomes.' : 'Add accurate numbers, percentages, scale, or time saved to achievement bullets.' },
     { key: 'parseability', label: 'Contact and text parseability', earned: Math.min(10, (words.length >= 100 ? 5 : words.length ? 2 : 0) + (email ? 3 : 0) + (phone ? 2 : 0)), maximum: 10, detail: `${words.length} words, ${email ? 'email' : 'no email'}, and ${phone ? 'phone' : 'no phone'} detected in the plain-text CV.` },
+    { key: 'formatting', label: 'ATS-safe formatting', earned: formattingPoints, maximum: 5, detail: formattingPoints ? 'Plain text uses standard spacing without layout-breaking tabs or column gaps.' : 'Remove tabs and large spacing gaps that can disrupt ATS extraction.' },
   ];
   return { score: checks.reduce((total, check) => total + check.earned, 0), checks, matchedKeywords, missingKeywords };
 }

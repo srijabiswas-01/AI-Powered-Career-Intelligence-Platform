@@ -46,7 +46,8 @@ import ProfessionalProfileSettings from "./profile-settings";
 const nav = [
   ["Dashboard", LayoutDashboard],
   ["My Resumes", FileText],
-  ["AI Tools", Sparkles],
+  ["AI CV Builder", FileText],
+  ["AI Cover Letter", Sparkles],
   ["Job Search", BriefcaseBusiness],
   ["Applications", ApplicationFile],
   ["Projects", FolderKanban],
@@ -82,6 +83,10 @@ type ResumeData = {
   provider?: string;
   extraction_status?: "ready" | "failed";
   ats_breakdown?: AtsBreakdown[];
+  source_type?: "uploaded" | "ai_cv_builder";
+  builder_snapshot?: Record<string, unknown>;
+  target_role?: string;
+  job_description?: string;
 };
 type DashboardData = {
   stats: {
@@ -131,9 +136,13 @@ const modules: Record<string, { text: string; action: string }> = {
     text: "Create, upload, manage, and optimize every version of your resume.",
     action: "Upload resume",
   },
-  "AI Tools": {
+  "AI Cover Letter": {
     text: "Analyze resumes, tailor applications, and generate compelling cover letters.",
     action: "Open AI workspace",
+  },
+  "AI CV Builder": {
+    text: "Build, review, save, and download ATS-friendly CV variants.",
+    action: "Open CV Builder",
   },
   "Job Search": {
     text: "Discover relevant opportunities matched to your skills and goals.",
@@ -158,10 +167,6 @@ const modules: Record<string, { text: string; action: string }> = {
   Analytics: {
     text: "Understand your applications, ATS performance, and career momentum.",
     action: "Export report",
-  },
-  "CV Builder": {
-    text: "Manage your profile, preferences, connected accounts, and privacy.",
-    action: "Save CV builder changes",
   },
 };
 
@@ -192,6 +197,7 @@ export default function Home() {
       applications: [],
     });
   const [jobResumeId, setJobResumeId] = useState("");
+  const [builderResume, setBuilderResume] = useState<ResumeData | null>(null);
   useEffect(() => {
     fetch("/api/auth/me")
       .then(async (response) => {
@@ -345,7 +351,7 @@ export default function Home() {
         </div>
         <div className="navlabel">WORKSPACE</div>
         <nav>
-          {nav.slice(0, 4).map(([n, I]) => (
+          {nav.slice(0, 5).map(([n, I]) => (
             <button
               key={n}
               className={active === n ? "active" : ""}
@@ -353,13 +359,13 @@ export default function Home() {
             >
               <I size={18} />
               {n}
-              {n === "AI Tools" && <span className="new">NEW</span>}
+              {n === "AI Cover Letter" && <span className="new">NEW</span>}
             </button>
           ))}
         </nav>
         <div className="navlabel">MANAGE</div>
         <nav>
-          {nav.slice(4).map(([n, I]) => (
+          {nav.slice(5).map(([n, I]) => (
             <button
               key={n}
               className={active === n ? "active" : ""}
@@ -371,10 +377,6 @@ export default function Home() {
           ))}
         </nav>
         <div className="sidebarBottom">
-          <button onClick={() => go("CV Builder")}>
-            <FileText size={18} />
-            CV Builder
-          </button>
           <button
             className="profile"
             onClick={() => setProfileOpen(!profileOpen)}
@@ -395,7 +397,7 @@ export default function Home() {
           </button>
           {profileOpen && (
             <div className="profileMenu">
-              <button onClick={() => go("CV Builder")}>CV Builder</button>
+              <button onClick={() => go("AI CV Builder")}>AI CV Builder</button>
               <button onClick={logout}>Sign out</button>
             </div>
           )}
@@ -650,7 +652,7 @@ export default function Home() {
                             ? "My Resumes"
                             : q.title === "Tailor for a job"
                               ? "Job Search"
-                              : "AI Tools",
+                              : "AI Cover Letter",
                         )
                       }
                     >
@@ -666,9 +668,9 @@ export default function Home() {
                   ))}
                   <div className="credits">
                     <span>
-                      <Zap size={14} /> AI tools connected
+                      <Zap size={14} /> AI cover letter connected
                     </span>
-                    <button onClick={() => go("AI Tools")}>Open</button>
+                    <button onClick={() => go("AI Cover Letter")}>Open</button>
                   </div>
                 </section>
                 <section className="card progressCard">
@@ -683,13 +685,13 @@ export default function Home() {
                     <i style={{ width: "0%" }} />
                   </div>
                   <div className="checks">
-                    <button className="missing" onClick={() => go("CV Builder")}>
+                    <button className="missing" onClick={() => go("AI CV Builder")}>
                       <Plus /> Add personal information
                     </button>
-                    <button className="missing" onClick={() => go("CV Builder")}>
+                    <button className="missing" onClick={() => go("AI CV Builder")}>
                       <Plus /> Add work experience
                     </button>
-                    <button className="missing" onClick={() => go("CV Builder")}>
+                    <button className="missing" onClick={() => go("AI CV Builder")}>
                       <Plus /> Add skills
                     </button>
                     <button
@@ -731,6 +733,7 @@ export default function Home() {
                 setJobResumeId(id);
                 go("Job Search");
               }}
+              editBuilder={(resume) => { setBuilderResume(resume); go("AI CV Builder"); }}
             />
           ) : active === "Job Search" ? (
             <JobSearch
@@ -739,7 +742,7 @@ export default function Home() {
               initialResumeId={jobResumeId}
               applicationSaved={() => setRefresh((value) => value + 1)}
             />
-          ) : active === "AI Tools" ? (
+          ) : active === "AI Cover Letter" ? (
             <CoverLetterWorkspace resumes={resumes} />
           ) : active === "Applications" ? (
             <ApplicationsPage
@@ -753,8 +756,8 @@ export default function Home() {
             <PortfolioPage />
           ) : active === "Analytics" ? (
             <AnalyticsPage />
-          ) : active === "CV Builder" ? (
-            <ProfessionalProfileSettings />
+          ) : active === "AI CV Builder" ? (
+            <ProfessionalProfileSettings initialVariant={builderResume?.builder_snapshot as any} />
           ) : (
             <ModulePage
               name={active}
@@ -1122,11 +1125,13 @@ function ResumesPage({
   upload,
   changed,
   suggest,
+  editBuilder,
 }: {
   resumes: ResumeData[];
   upload: () => void;
   changed: () => void;
   suggest: (id: string) => void;
+  editBuilder: (resume: ResumeData) => void;
 }) {
   const viewUrl = (resume: ResumeData) => `/api/resumes/${resume.id}/view`;
   const [pendingDelete, setPendingDelete] = useState<ResumeData | null>(null),
@@ -1185,6 +1190,7 @@ function ResumesPage({
                     {new Date(resume.created_at).toLocaleDateString()} ·{" "}
                     {Math.ceil(resume.size_bytes / 1024)} KB
                   </small>
+                  <span className={`resumeSourceTag ${resume.source_type === "ai_cv_builder" ? "builder" : "uploaded"}`}>{resume.source_type === "ai_cv_builder" ? "AI CV Builder" : "Uploaded CV"}</span>
                 </div>
                 <div className="resumeAtsScore" title="Internal ATS readiness estimate" aria-label={`ATS readiness ${typeof resume.score === "number" ? `${resume.score} percent` : "not available"}`}>
                   <strong>{typeof resume.score === "number" ? resume.score : "—"}{typeof resume.score === "number" && <em>%</em>}</strong>
@@ -1236,6 +1242,7 @@ function ResumesPage({
               )}
               <div className="resumeLinks">
                 <>
+                  {resume.source_type === "ai_cv_builder" && resume.builder_snapshot && <button className="editResume" onClick={() => editBuilder(resume)}><i className="bi bi-pencil" /> Edit in AI CV Builder</button>}
                   <a href={viewUrl(resume)} target="_blank" rel="noreferrer">
                     View resume <ArrowUpRight size={14} />
                   </a>
@@ -2057,43 +2064,37 @@ function PortfolioPage() {
       .then(setData);
   }, []);
   if (!data) return <div className="moduleEmpty">Loading portfolio…</div>;
+  const profile = data.profile || {};
+  const skills = Array.isArray(profile.skills_json) ? profile.skills_json.filter((item: any) => item?.includeInCv !== false) : [];
+  const experience = Array.isArray(profile.experience_json) ? profile.experience_json.filter((item: any) => item?.includeInCv !== false) : [];
+  const education = Array.isArray(profile.education_json) ? profile.education_json.filter((item: any) => item?.includeInCv !== false) : [];
+  const languages = Array.isArray(profile.languages_json) ? profile.languages_json.filter((item: any) => item?.includeInCv !== false) : [];
+  const links = Array.isArray(profile.links_json) ? profile.links_json.filter((item: any) => item?.includeInCv !== false) : [];
+  const publications = Array.isArray(profile.publications_json) ? profile.publications_json.filter((item: any) => item?.includeInCv !== false) : [];
+  const achievements = Array.isArray(profile.achievements_json) ? profile.achievements_json.filter((item: any) => item?.includeInCv !== false) : [];
+  const skillGroups = skills.reduce((groups: Record<string, string[]>, skill: any) => { const category = skill.category || "Other"; groups[category] = [...(groups[category] || []), skill.name]; return groups; }, {});
+  const skillEntries = Object.entries(skillGroups) as [string, string[]][];
+  const maxSkillCount = Math.max(1, ...skillEntries.map(([, items]) => items.length));
   return (
-    <section className="modulePage">
+    <section className="modulePage professionalPortfolio">
       <div className="portfolioHero">
-        <p>PROFESSIONAL PORTFOLIO</p>
-        <h1>{data.user.name}</h1>
-        <h2>
-          {data.profile.headline || "Add a professional headline in CV Builder"}
-        </h2>
-        <span>{data.profile.location}</span>
-        <p>{data.profile.bio}</p>
+        <div className="portfolioHeroTop"><div className="portfolioIdentityBlock">{profile.avatar_data_url ? <img className="portfolioAvatar" src={profile.avatar_data_url} alt={`${data.user.name} profile`} /> : <div className="portfolioAvatar portfolioInitials">{data.user.name.split(/\s+/).slice(0, 2).map((part: string) => part[0]).join("").toUpperCase()}</div>}<div><p>PROFESSIONAL PORTFOLIO</p><h1>{data.user.name}</h1><h2>{profile.headline || profile.job_title || "Build your professional identity"}</h2><span>{[profile.location, profile.phone, data.user.email].filter(Boolean).join(" · ")}</span></div></div><div className="portfolioHeroActions">{links.slice(0, 3).map((link: any) => <a key={link.url} href={link.url} target="_blank" rel="noreferrer">{link.platform === "Other" ? link.label || "Profile" : link.platform}<ArrowUpRight size={13} /></a>)}</div></div>
+        <p>{profile.summary || profile.bio || "Add a professional summary in AI CV Builder to introduce your experience, strengths, and direction."}</p>
       </div>
-      <div className="portfolioGrid">
-        <div className="resultCard">
-          <h2>Projects</h2>
-          {data.projects.map((item: any) => (
-            <article key={item.id}>
-              <h3>{item.title}</h3>
-              <p>{item.description}</p>
-              <small>{item.technologies}</small>
-            </article>
-          ))}
-          {!data.projects.length && (
-            <p>Add projects to populate this section.</p>
-          )}
-        </div>
-        <div className="resultCard">
-          <h2>Certificates</h2>
-          {data.certificates.map((item: any) => (
-            <article key={item.id}>
-              <h3>{item.name}</h3>
-              <p>{item.issuer}</p>
-            </article>
-          ))}
-          {!data.certificates.length && (
-            <p>Add certificates to populate this section.</p>
-          )}
-        </div>
+      <div className="portfolioMetrics"><div><strong>{experience.length}</strong><span>Experience records</span></div><div><strong>{skills.length}</strong><span>Curated skills</span></div><div><strong>{data.projects.length}</strong><span>Featured projects</span></div><div><strong>{data.certificates.length}</strong><span>Credentials</span></div></div>
+      <div className="portfolioDashboard">
+        <main className="portfolioMain">
+          <section className="portfolioSection"><div className="portfolioSectionHead"><span>CAREER STORY</span><h2>About me</h2></div><p>{profile.summary || profile.bio || "Your professional summary will appear here."}</p></section>
+          <section className="portfolioSection"><div className="portfolioSectionHead"><span>CAREER PATH</span><h2>Experience</h2></div>{experience.length ? <div className="portfolioTimeline">{experience.map((item: any) => <article key={`${item.title}-${item.company}`}><i /><div><div className="portfolioEntryHead"><h3>{item.title}</h3><time>{item.startDate || item.start_date || ""} {item.current ? "– Present" : item.endDate || item.end_date ? `– ${item.endDate || item.end_date}` : ""}</time></div><p>{item.company}{item.location ? ` · ${item.location}` : ""}</p>{String(item.description || "").split(/\r?\n/).filter(Boolean).map((line: string, index: number) => <small key={index}>• {line.replace(/^[-•]\s*/, "")}</small>)}</div></article>)}</div> : <p className="portfolioMuted">Add work experience in AI CV Builder.</p>}</section>
+          <section className="portfolioSection"><div className="portfolioSectionHead"><span>SELECTED WORK</span><h2>Projects</h2></div>{data.projects.length ? <div className="portfolioProjectGrid">{data.projects.map((item: any) => <article key={item.id}><div className="portfolioProjectTop"><h3>{item.title}</h3>{item.project_url && <a href={item.project_url} target="_blank" rel="noreferrer" aria-label={`Open ${item.title}`}><ArrowUpRight size={15} /></a>}</div><small>{[item.role, item.technologies].filter(Boolean).join(" · ")}</small><p>{item.description}</p>{item.outcomes && <b>Outcome: {item.outcomes}</b>}</article>)}</div> : <p className="portfolioMuted">Add projects to populate this section.</p>}</section>
+          <section className="portfolioSection"><div className="portfolioSectionHead"><span>ACADEMIC FOUNDATION</span><h2>Education</h2></div>{education.length ? <div className="portfolioEducationGrid">{education.map((item: any) => <article key={`${item.degree}-${item.institution}`}><h3>{item.degree}{item.field ? ` in ${item.field}` : ""}</h3><p>{item.institution}{item.location ? ` · ${item.location}` : ""}</p><small>{item.grade || ""}{item.startDate || item.start_date ? ` · ${item.startDate || item.start_date}` : ""}{item.endDate || item.end_date ? ` – ${item.endDate || item.end_date}` : ""}</small></article>)}</div> : <p className="portfolioMuted">Add education in AI CV Builder.</p>}</section>
+        </main>
+        <aside className="portfolioAside">
+          <section className="portfolioSection portfolioSkillSection"><div className="portfolioSectionHead"><span>CAPABILITY MAP</span><h2>Skills by focus</h2></div>{skillEntries.length ? <div className="portfolioSkillBars">{skillEntries.map(([category, items]) => <div key={category}><div><b>{category}</b><span>{items.length}</span></div><i><em style={{ width: `${Math.max(18, items.length / maxSkillCount * 100)}%` }} /></i><small>{items.join(" · ")}</small></div>)}</div> : <p className="portfolioMuted">Add categorized skills in AI CV Builder.</p>}</section>
+          <section className="portfolioSection"><div className="portfolioSectionHead"><span>VERIFIED LEARNING</span><h2>Certifications</h2></div>{data.certificates.length ? <div className="portfolioCredentials">{data.certificates.map((item: any) => <article key={item.id}><Award size={17} /><div><h3>{item.name}</h3><p>{item.issuer}{item.issued_at ? ` · ${String(item.issued_at).slice(0, 10)}` : ""}</p>{item.skills && <small>{item.skills}</small>}</div>{item.credential_url && <a href={item.credential_url} target="_blank" rel="noreferrer" aria-label={`View ${item.name}`}><ArrowUpRight size={13} /></a>}</article>)}</div> : <p className="portfolioMuted">Add certificates to show verified learning.</p>}</section>
+          {languages.length > 0 && <section className="portfolioSection"><div className="portfolioSectionHead"><span>COMMUNICATION</span><h2>Languages</h2></div><div className="portfolioPills">{languages.map((item: any) => <span key={item.name}>{item.name}{item.level ? ` · ${item.level}` : ""}</span>)}</div></section>}
+          {(publications.length > 0 || achievements.length > 0) && <section className="portfolioSection"><div className="portfolioSectionHead"><span>RECOGNITION</span><h2>Highlights</h2></div><div className="portfolioHighlights">{[...achievements.map((item: any) => item.name), ...publications.map((item: any) => item.title)].map((item: string, index: number) => <p key={`${item}-${index}`}><CircleCheck size={14} />{item}</p>)}</div></section>}
+        </aside>
       </div>
     </section>
   );

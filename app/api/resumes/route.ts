@@ -15,7 +15,7 @@ export async function GET() {
   const user = await getSessionUser();
   if (!user) return apiError('Authentication required.', 401);
   const rows = await database<Array<ResumeDataRow>>`
-    select r.id, r.filename, r.mime_type, r.size_bytes, r.created_at,
+    select r.id, r.filename, r.mime_type, r.size_bytes, r.created_at, r.source_type, r.builder_snapshot, r.target_role, r.job_description,
       r.content, left(r.content, 2000) as content_preview,
       a.score, a.strengths, a.improvements, a.keywords, a.provider, a.created_at as analyzed_at
     from resumes r
@@ -37,6 +37,7 @@ type ResumeDataRow = {
   id: string; filename: string; mime_type: string; size_bytes: number;
   created_at: Date; content: string | null; content_preview: string | null; score: number | null;
   strengths: string[] | null; improvements: string[] | null; keywords: string[] | null; provider: string | null; analyzed_at: Date | null;
+  source_type: 'uploaded' | 'ai_cv_builder'; builder_snapshot: Record<string, unknown> | null; target_role: string | null; job_description: string | null;
 };
 
 export async function POST(request: Request) {
