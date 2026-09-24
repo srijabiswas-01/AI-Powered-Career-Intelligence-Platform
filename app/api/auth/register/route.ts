@@ -3,8 +3,11 @@ import { NextResponse } from 'next/server';
 import { createSession, hashPassword } from '@/lib/auth';
 import { database } from '@/lib/db';
 import { apiError, isEmail } from '@/lib/http';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: Request) {
+  const limited = rateLimit(request, 'register', 5, 60 * 60_000);
+  if (limited) return limited;
   const body = await request.json().catch(() => null);
   const name = String(body?.name ?? '').trim();
   const email = String(body?.email ?? '').trim().toLowerCase();
@@ -22,4 +25,3 @@ export async function POST(request: Request) {
   await createSession(user.id);
   return NextResponse.json({ user }, { status: 201 });
 }
-

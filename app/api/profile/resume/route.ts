@@ -101,7 +101,6 @@ async function generateResume(request: Request) {
   return new Response(new Uint8Array(buffer), { headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'Content-Disposition': `attachment; filename="${filename}"`, 'Cache-Control': 'private, no-store' } });
 }
 
-export async function GET(request: Request) { return generateResume(request); }
 export async function POST(request: Request) { return generateResume(request); }
 export async function DELETE(request: Request) {
   const user = await getSessionUser();

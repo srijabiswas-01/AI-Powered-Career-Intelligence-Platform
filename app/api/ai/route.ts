@@ -3,10 +3,13 @@ import { NextResponse } from 'next/server';
 import { generateCareerAdvice } from '@/lib/ai';
 import { getSessionUser } from '@/lib/auth';
 import { apiError } from '@/lib/http';
+import { rateLimit } from '@/lib/rate-limit';
 
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
+  const limited = rateLimit(request, 'ai', 20, 60_000);
+  if (limited) return limited;
   const user = await getSessionUser();
   if (!user) return apiError('Authentication required.', 401);
   const body = await request.json().catch(() => null);

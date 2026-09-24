@@ -83,6 +83,8 @@ export async function POST(request: Request) {
       const body = await request.json().catch(() => null);
       filename = String(body?.filename ?? '').trim(); content = String(body?.content ?? '');
       mimeType = String(body?.mimeType ?? 'text/plain'); size = Buffer.byteLength(content);
+      if (size > MAX_UPLOAD_BYTES) return apiError('Resume content must be 4 MB or smaller.', 413);
+      if (!['text/plain', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(mimeType)) return apiError('Unsupported resume type.', 415);
     }
     if (!filename) return apiError('Filename is required.');
     const [resume] = await database`
