@@ -42,6 +42,7 @@ import {
 } from "./bootstrap-icons";
 import { APPLICATION_STAGES } from "@/lib/applications";
 import ProfessionalProfileSettings from "./profile-settings";
+import CustomSelect, { type SelectGroup } from "./custom-select";
 
 const nav = [
   ["Dashboard", LayoutDashboard],
@@ -88,16 +89,16 @@ type ResumeData = {
   target_role?: string;
   job_description?: string;
 };
-function ResumeOptionGroups({ resumes }: { resumes: ResumeData[] }) {
+function resumeOptionGroups(resumes: ResumeData[]): SelectGroup[] {
   const uploaded = resumes.filter(resume => resume.source_type !== "ai_cv_builder");
   const aiCvs = resumes.filter(resume => resume.source_type === "ai_cv_builder");
   const label = (resume: ResumeData) => resume.source_type === "ai_cv_builder"
     ? String(resume.builder_snapshot?.name || resume.target_role || resume.filename)
     : resume.filename;
-  return <>
-    {uploaded.length > 0 && <optgroup label="Uploaded Resumes">{uploaded.map(resume => <option value={resume.id} key={resume.id}>[Uploaded] {label(resume)}</option>)}</optgroup>}
-    {aiCvs.length > 0 && <optgroup label="AI CV Builder">{aiCvs.map(resume => <option value={resume.id} key={resume.id}>[AI CV] {label(resume)}{resume.target_role ? ` - ${resume.target_role}` : ""}</option>)}</optgroup>}
-  </>;
+  return [
+    { label: "Uploaded Resumes", options: uploaded.map(resume => ({ value: resume.id, label: label(resume), tag: "Uploaded", description: new Date(resume.created_at).toLocaleDateString() })) },
+    { label: "AI CV Builder", options: aiCvs.map(resume => ({ value: resume.id, label: label(resume), tag: "AI CV", description: resume.target_role || "Generated CV" })) },
+  ].filter(group => group.options.length);
 }
 type DashboardData = {
   stats: {
@@ -510,19 +511,7 @@ export default function Home() {
                 </div>
                 <label className="periodSelect">
                   <CalendarDays size={17} />
-                  <select
-                    value={dashboardPeriod}
-                    onChange={(event) =>
-                      setDashboardPeriod(
-                        event.target.value as "week" | "month" | "all",
-                      )
-                    }
-                  >
-                    <option value="week">This week</option>
-                    <option value="month">This month</option>
-                    <option value="all">All time</option>
-                  </select>
-                  <ChevronDown size={15} />
+                  <CustomSelect compact ariaLabel="Dashboard reporting period" value={dashboardPeriod} onChange={value => setDashboardPeriod(value as "week" | "month" | "all")} groups={[{ options: [{ value: "week", label: "This week" }, { value: "month", label: "This month" }, { value: "all", label: "All time" }] }]} />
                 </label>
               </div>
               <div className="hero">
@@ -1543,13 +1532,7 @@ function JobSearch({
       >
         <label>
           <span>Resume source</span>
-          <select
-            value={resumeId}
-            onChange={(event) => setResumeId(event.target.value)}
-          >
-            <option value="">Search without a resume</option>
-            <ResumeOptionGroups resumes={resumes} />
-          </select>
+          <CustomSelect ariaLabel="Resume source" value={resumeId} onChange={setResumeId} groups={[{ options: [{ value: "", label: "Search without a resume", tag: "Optional" }] }, ...resumeOptionGroups(resumes)]} />
         </label>
         <label>
           <span>Target role</span>
@@ -1563,9 +1546,7 @@ function JobSearch({
         </label>
         <label>
           <span>Country</span>
-          <select value={country} onChange={(event) => setCountry(event.target.value)} aria-label="Job country">
-            {JOB_COUNTRIES.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
-          </select>
+          <CustomSelect ariaLabel="Job country" value={country} onChange={setCountry} groups={[{ options: JOB_COUNTRIES.map(([value, label]) => ({ value, label })) }]} />
         </label>
         <label>
           <span>City</span>
@@ -1734,7 +1715,8 @@ type GeneratedDocument = {
   created_at: string;
 };
 function CoverLetterWorkspace({ resumes }: { resumes: ResumeData[] }) {
-  const [busy, setBusy] = useState(false),
+  const [selectedResumeId, setSelectedResumeId] = useState(""),
+    [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [result, setResult] = useState<CoverLetterResult | null>(null),
     [historyRefresh, setHistoryRefresh] = useState(0);
@@ -1786,12 +1768,7 @@ function CoverLetterWorkspace({ resumes }: { resumes: ResumeData[] }) {
           <label>
             Resume
             <small>Optional. Leave blank to use your portfolio and profile.</small>
-            <select name="resumeId" defaultValue="">
-              <option value="">
-                Use portfolio and profile instead
-              </option>
-              <ResumeOptionGroups resumes={resumes} />
-            </select>
+            <CustomSelect name="resumeId" ariaLabel="Resume for cover letter" value={selectedResumeId} onChange={setSelectedResumeId} groups={[{ options: [{ value: "", label: "Use portfolio and profile instead", tag: "Profile" }] }, ...resumeOptionGroups(resumes)]} />
           </label>
           <div>
             <label>
@@ -2015,14 +1992,7 @@ function ApplicationsPage({ changed }: { changed: () => void }) {
                 {String(item.applied_at).slice(0, 10)}
               </p>
             </div>
-            <select
-              value={item.stage}
-              onChange={(e) => void stage(item.id, e.target.value)}
-            >
-              {APPLICATION_STAGES.map((value) => (
-                <option key={value}>{value}</option>
-              ))}
-            </select>
+            <CustomSelect compact ariaLabel={`Application stage for ${item.role}`} value={item.stage} onChange={value => void stage(item.id, value)} groups={[{ options: APPLICATION_STAGES.map(value => ({ value, label: value })) }]} />
             {item.job_url && (
               <a href={item.job_url} target="_blank" rel="noreferrer">
                 Open job
