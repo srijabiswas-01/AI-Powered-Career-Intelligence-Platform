@@ -136,6 +136,9 @@ export function analyzeCvBuilder(input: {
   const requiredKeywords = extractAtsKeywords(requiredSentences.join(' '), 30);
   const preferredKeywords = extractAtsKeywords(preferredSentences.join(' '), 30);
   const missingRequired = requiredKeywords.filter(keyword => !resumeContainsKeyword(text, keyword));
+  const minimumYears = [...jobDescription.matchAll(/(?:minimum(?:\s+of)?|at least|requires?|need(?:s|ed)?|must have)?\s*(\d+)\+?\s*(?:years?|yrs?)(?:\s+of)?\s+(?:relevant\s+)?experience/gi)].map(match => Number(match[1])).filter(Boolean).sort((a, b) => b - a)[0];
+  const requiredDegrees = ['phd', "master's", 'masters', "bachelor's", 'bachelors', 'mba', 'mca', 'bca', 'b.tech', 'm.tech'].filter(degree => requiredSentences.join(' ').toLowerCase().includes(degree));
+  const missingDegrees = requiredDegrees.filter(degree => !normalizedText.includes(degree));
   const skillsOnly = matchedKeywords.filter(keyword => {
     const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const evidenceSections = text.split(/\n(?=(?:professional experience|work experience|experience|selected projects|projects)\b)/i).slice(1).join('\n');
@@ -160,6 +163,8 @@ export function analyzeCvBuilder(input: {
     ...(!input.skillCount ? [{ severity: 'critical' as const, message: 'Select genuine technical skills for this CV.' }] : []),
     ...(!input.experienceCount && !input.projectCount ? [{ severity: 'critical' as const, message: 'Add experience or a relevant project that demonstrates your skills.' }] : []),
     ...(!input.educationCount ? [{ severity: 'warning' as const, message: 'Add education so qualification requirements can be reviewed.' }] : []),
+    ...(minimumYears ? [{ severity: 'warning' as const, message: `The job asks for ${minimumYears}+ years of experience. Verify that the selected employment dates demonstrate this requirement.` }] : []),
+    ...missingDegrees.slice(0, 2).map(degree => ({ severity: 'warning' as const, message: `The job appears to require ${degree}; this qualification was not found in the selected CV.` })),
     ...(!metrics ? [{ severity: 'suggestion' as const, message: 'Add a truthful metric, scale, outcome, or time saved where available.' }] : []),
     ...missingRequired.slice(0, 5).map(keyword => ({ severity: 'warning' as const, message: `Required term “${keyword}” is not demonstrated. Add it only if it is accurate.` })),
     ...skillsOnly.slice(0, 4).map(keyword => ({ severity: 'suggestion' as const, message: `“${keyword}” needs supporting evidence in experience or projects.` })),
