@@ -1,4 +1,4 @@
-import { extractJobKeywords, resumeContainsKeyword } from './job-keywords';
+import { extractJobKeywords, resumeContainsKeyword, sanitizeKeywordList } from './job-keywords';
 
 export type CvBuilderAudit = {
   score: number;
@@ -8,10 +8,13 @@ export type CvBuilderAudit = {
 };
 
 const stopWords = new Set('a an and are as at be been by for from has have in into is it its of on or that the their this to was were will with you your our we they them who'.split(' '));
-const jobNoiseWords = new Set('about across also can candidate candidates company looking must need position role responsibilities responsible required requirements seeking should team teams work working year years preferred including use using ability able join strong excellent ideal plus relevant support develop development build built create creating manage management provide knowledge skills experience'.split(' '));
+const jobNoiseWords = new Set('about across add also before builder can candidate candidates career clear company complete contact content cv description employer essential feedback generation generated genuine hidden important information job keyword keywords length maker makers matched missing must need position profile relevant responsibilities responsible required requirements resume role section selected seeking should skills source strong summary support team teams terms text work working year years preferred including use using ability able join excellent ideal plus develop development build built create creating manage management provide knowledge'.split(' '));
+const skillSignalWords = new Set('ai analytics analysis analyst intelligence learning data dashboard dashboards reporting modeling modelling model models database databases sql python power tableau excel dax query etl ssis ssrs server visualization validation cleaning kpi forecasting regression classification clustering statistical predictive trend warehousing schema star fact dimension cloud aws azure gcp docker kubernetes api apis pandas numpy pytorch tensorflow keras sklearn scikit machine nlp llm llms'.split(' '));
 
 export function extractStatisticalKeywords(value: string, limit = 10, minimumCount = 2) {
-  const tokens = (value.toLowerCase().match(/[a-z][a-z0-9+#.-]{2,}/g) ?? []).filter(word => !stopWords.has(word) && !/^\d/.test(word));
+  const known = extractJobKeywords(value, limit);
+  const scrubbed = value.replace(/[\w.+-]+@[\w.-]+\.[a-z]{2,}/gi, ' ').replace(/https?:\/\/\S+/gi, ' ');
+  const tokens = (scrubbed.toLowerCase().match(/[a-z][a-z0-9+#.-]{2,}/g) ?? []).filter(word => !stopWords.has(word) && !jobNoiseWords.has(word) && !/^\d/.test(word));
   const unigramCounts = new Map<string, number>();
   const phraseCounts = new Map<string, number>();
   tokens.forEach(token => unigramCounts.set(token, (unigramCounts.get(token) || 0) + 1));
@@ -19,31 +22,37 @@ export function extractStatisticalKeywords(value: string, limit = 10, minimumCou
     const phrase = `${tokens[index]} ${tokens[index + 1]}`;
     phraseCounts.set(phrase, (phraseCounts.get(phrase) || 0) + 1);
   }
-  const phrases = [...phraseCounts].filter(([, count]) => count >= minimumCount).map(([keyword, count]) => ({ keyword, score: count * 4 }));
-  const words = [...unigramCounts].filter(([, count]) => count >= minimumCount).map(([keyword, count]) => ({ keyword, score: count * 2 }));
-  return [...phrases, ...words].sort((a, b) => b.score - a.score || b.keyword.length - a.keyword.length).map(item => item.keyword).filter((keyword, index, all) => !all.slice(0, index).some(existing => existing.includes(keyword))).slice(0, limit);
+  const hasSignal = (keyword: string) => keyword.split(/\s+/).some(word => skillSignalWords.has(word));
+  const phrases = [...phraseCounts].filter(([keyword, count]) => count >= minimumCount && hasSignal(keyword)).map(([keyword, count]) => ({ keyword, score: count * 4 }));
+  const words = [...unigramCounts].filter(([keyword, count]) => count >= minimumCount && hasSignal(keyword)).map(([keyword, count]) => ({ keyword, score: count * 2 }));
+  const fallback = [...phrases, ...words].sort((a, b) => b.score - a.score || b.keyword.length - a.keyword.length).map(item => item.keyword);
+  return sanitizeKeywordList([...known, ...fallback], limit);
 }
 
 export function extractAtsKeywords(value: string, limit = 60) {
   const known = extractJobKeywords(value, limit);
-  const tokens = value.toLowerCase().match(/[a-z][a-z0-9+#./-]{1,}/g) ?? [];
+  const scrubbed = value.replace(/[\w.+-]+@[\w.-]+\.[a-z]{2,}/gi, ' ').replace(/https?:\/\/\S+/gi, ' ');
+  const tokens = scrubbed.toLowerCase().match(/[a-z][a-z0-9+#./-]{1,}/g) ?? [];
   const meaningful = (token: string) => !stopWords.has(token) && !jobNoiseWords.has(token) && !/^\d/.test(token) && token.length >= 2;
   const filteredTokens = tokens.filter(meaningful);
   const counts = new Map<string, number>();
   filteredTokens.forEach(token => counts.set(token, (counts.get(token) || 0) + 1));
-  for (let index = 0; index < tokens.length - 1; index += 1) {
-    const first = tokens[index], second = tokens[index + 1];
-    if (meaningful(first) && meaningful(second)) {
-      const phrase = `${first} ${second}`;
-      counts.set(phrase, (counts.get(phrase) || 0) + 2);
+  for (let index = 0; index < tokens.length; index += 1) {
+    for (const width of [2, 3]) {
+      const parts = tokens.slice(index, index + width);
+      if (parts.length === width && parts.every(meaningful) && parts.some(part => skillSignalWords.has(part))) {
+        const phrase = parts.join(' ');
+        counts.set(phrase, (counts.get(phrase) || 0) + width + 1);
+      }
     }
   }
   const generic = [...counts]
     .sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)
     .map(([token]) => token)
+    .filter(token => token.split(/\s+/).some(part => skillSignalWords.has(part)))
     .filter(token => !known.some(keyword => keyword.toLowerCase() === token || keyword.toLowerCase().includes(` ${token}`)))
     .slice(0, Math.max(0, limit - known.length));
-  return [...known, ...generic];
+  return sanitizeKeywordList([...known, ...generic], limit);
 }
 
 export function analyzeResumeText(value: string, jobDescription = '') {

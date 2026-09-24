@@ -30,8 +30,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const output = JSON.parse(cleaned) as { coverLetter?: string; emailSubject?: string; emailBody?: string };
     if (!output.coverLetter || !output.emailSubject || !output.emailBody) throw new Error('Incomplete AI response');
     const [letter] = await database<{ id:string; created_at:Date }[]>`
-      insert into cover_letters (resume_id,job_title,company,hr_name,hr_email,cover_letter,email_subject,email_body,provider)
-      values (${id},${jobTitle},${company},${hrName||null},${hrEmail||null},${output.coverLetter},${output.emailSubject},${output.emailBody},${generated.provider}) returning id,created_at
+      insert into cover_letters (user_id,resume_id,job_title,company,hr_name,hr_email,cover_letter,email_subject,email_body,provider)
+      values (${user.id},${id},${jobTitle},${company},${hrName||null},${hrEmail||null},${output.coverLetter},${output.emailSubject},${output.emailBody},${generated.provider}) returning id,created_at
     `;
     return NextResponse.json({ coverLetter: { ...letter, ...output, jobTitle, company, hrName, hrEmail, filename: `${company}_${jobTitle}_Cover_Letter.docx`.replace(/[^a-z0-9._-]+/gi,'_') } }, { status: 201 });
   } catch (error) {

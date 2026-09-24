@@ -2,6 +2,30 @@ import 'server-only';
 
 type Message = { role: 'system' | 'user' | 'assistant'; content: string };
 
+function parseAiJson(text: string) {
+  const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    let start = -1, endChar = '', depth = 0, inString = false, escaped = false;
+    for (let index = 0; index < cleaned.length; index += 1) {
+      const char = cleaned[index];
+      if (start === -1) {
+        if (char === '[' || char === '{') { start = index; endChar = char === '[' ? ']' : '}'; depth = 1; }
+        continue;
+      }
+      if (escaped) { escaped = false; continue; }
+      if (char === '\\') { escaped = true; continue; }
+      if (char === '"') { inString = !inString; continue; }
+      if (inString) continue;
+      if (char === cleaned[start]) depth += 1;
+      if (char === endChar) depth -= 1;
+      if (depth === 0) return JSON.parse(cleaned.slice(start, index + 1));
+    }
+    throw new Error(`AI response did not contain valid JSON: ${cleaned.slice(0, 120)}`);
+  }
+}
+
 async function completion(url: string, key: string, model: string, messages: Message[], maxTokens: number) {
   const response = await fetch(url, {
     method: 'POST',
@@ -36,8 +60,7 @@ export async function extractResumeKeywordsWithAI(resumeText: string) {
     { role: 'system', content: 'Extract career keywords from resumes. Return only a JSON array of 5 to 12 concise strings. Include only skills, tools, technologies, disciplines, methods, or domain expertise explicitly present in the resume. Do not infer or invent anything. Exclude names, employers, locations, generic adjectives, and section headings.' },
     { role: 'user', content: resumeText.slice(0, 18_000) },
   ]);
-  const json = result.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-  const parsed = JSON.parse(json);
+  const parsed = parseAiJson(result.text);
   if (!Array.isArray(parsed)) throw new Error('AI keyword response was not an array');
   const keywords = [...new Set(parsed.map(value => String(value).trim().toLowerCase()).filter(value => value.length >= 2 && value.length <= 60))].slice(0, 12);
   return { keywords, provider: result.provider };
@@ -51,8 +74,7 @@ export async function extractJobKeywordsWithAI(jobDescription: string) {
     },
     { role: 'user', content: jobDescription.slice(0, 18_000) },
   ], { maxTokens: 1800 });
-  const json = result.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-  const parsed = JSON.parse(json);
+  const parsed = parseAiJson(result.text);
   if (!Array.isArray(parsed)) throw new Error('AI job keyword response was not an array');
   const keywords = [...new Set(parsed.map(value => String(value).trim()).filter(value => value.length >= 2 && value.length <= 80))].slice(0, 50);
   if (!keywords.length) throw new Error('AI job keyword response was empty');
@@ -93,8 +115,7 @@ export async function reviewResumeWithAI(resumeText: string, jobDescription = ''
     { role: 'system', content: 'Review the supplied resume using only its text. Return only valid JSON with arrays named strengths, improvements, and keywords. Give 2-5 specific strengths and 2-5 actionable improvements. Keywords must contain 5-12 skills, tools, methods, or domains explicitly present in the resume. Do not invent facts and do not claim to represent an employer ATS.' },
     { role: 'user', content: `RESUME:\n${resumeText.slice(0, 18_000)}${jobDescription ? `\n\nOPTIONAL JOB DESCRIPTION:\n${jobDescription.slice(0, 10_000)}` : ''}` },
   ], { maxTokens: 1400 });
-  const json = result.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-  const parsed = JSON.parse(json) as Partial<ResumeReview>;
+  const parsed = parseAiJson(result.text) as Partial<ResumeReview>;
   const clean = (value: unknown, limit: number) => Array.isArray(value)
     ? [...new Set(value.map(item => String(item).trim()).filter(item => item.length >= 2 && item.length <= 300))].slice(0, limit)
     : [];

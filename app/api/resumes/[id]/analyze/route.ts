@@ -5,6 +5,7 @@ import { database } from '@/lib/db';
 import { apiError } from '@/lib/http';
 import { analyzeResumeText } from '@/lib/ats';
 import { reviewResumeWithAI } from '@/lib/ai';
+import { sanitizeKeywordList } from '@/lib/job-keywords';
 
 export const maxDuration = 60;
 export const runtime = 'nodejs';
@@ -25,7 +26,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   let strengths = result.strengths, improvements = result.improvements, keywords = result.keywords, provider = 'heuristic';
   try {
     const review = await reviewResumeWithAI(resume.content, jobDescription);
-    strengths = review.strengths; improvements = review.improvements; keywords = review.keywords; provider = review.provider;
+    strengths = review.strengths; improvements = review.improvements; keywords = sanitizeKeywordList(review.keywords, 16); provider = review.provider;
   } catch (error) {
     console.warn('AI resume review failed; using heuristic fallback', error);
   }

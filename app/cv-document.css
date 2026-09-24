@@ -1,0 +1,278 @@
+.cvDocumentViewport {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+  width: 100%;
+  max-height: calc(100vh - 160px);
+  overflow: auto;
+  padding: 0 2px 12px;
+}
+
+.cvDocumentSheet {
+  position: relative;
+  flex: 0 0 auto;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #d8dee9;
+  border-radius: 2px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, .18);
+}
+
+.cvDocumentPage {
+  box-sizing: border-box;
+  width: var(--cv-width);
+  min-height: var(--cv-height);
+  padding: var(--cv-margin-y) var(--cv-margin-x);
+  transform-origin: top left;
+  background: #fff;
+  color: #000;
+  font: var(--cv-body)/var(--cv-line) Arial, Helvetica, sans-serif;
+  letter-spacing: 0;
+}
+
+.cvDocumentMeasure {
+  position: absolute;
+  left: -200vw;
+  top: 0;
+  width: var(--cv-width);
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.cvDocHeader {
+  display: block;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: #fff;
+  color: #000;
+  box-shadow: none;
+  backdrop-filter: none;
+  text-align: center;
+}
+
+.cvDocHeader h1 {
+  margin: 0;
+  color: #000;
+  font: 700 var(--cv-name)/1.05 Arial, Helvetica, sans-serif;
+}
+
+.cvDocHeader h2 {
+  margin: 2px 0 3px;
+  color: #000;
+  font: 700 var(--cv-headline)/1.12 Arial, Helvetica, sans-serif;
+}
+
+.cvDocHeader p {
+  margin: 0 0 5px;
+  color: #000;
+  font: var(--cv-contact)/1.25 Arial, Helvetica, sans-serif;
+}
+
+.cvDocSection {
+  margin: 6px 0 2px;
+  padding-bottom: 1px;
+  border-bottom: 1px solid #000;
+  font: 700 var(--cv-section)/1.1 Arial, Helvetica, sans-serif;
+  text-transform: uppercase;
+}
+
+.cvDocText,
+.cvDocBullet,
+.cvDocRow {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.cvDocRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 14px;
+  align-items: baseline;
+}
+
+.cvDocRight {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.cvDocBold {
+  font-weight: 700;
+}
+
+.cvDocItalic,
+.cvDocRight {
+  font-style: italic;
+}
+
+.cvDocBullet {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr);
+  line-height: 1.1;
+}
+
+.cvDocBullet::before {
+  content: "-";
+}
+
+.cvDocumentPage a {
+  color: #000;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 1px;
+}
+
+.cvPreviewModal {
+  width: min(980px, 100%);
+}
+
+.cvPreviewModal .cvDocumentViewport {
+  max-height: min(78vh, 980px);
+  margin-top: 16px;
+}
+
+.liveResumePreview .cvDocumentViewport {
+  max-height: none;
+  overflow: hidden;
+  padding: 0;
+  gap: 0;
+}
+
+.liveResumePreview .cvDocumentSheet {
+  width: min(100%, 100%) !important;
+  aspect-ratio: 210 / 297;
+  height: auto !important;
+}
+
+.liveResumePreview .cvDocumentSheet + .cvDocumentSheet {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  .cvDocumentViewport {
+    max-height: none;
+  }
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  html,
+  body {
+    width: 210mm !important;
+    min-height: 0 !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  .sidebar,
+  .content > header,
+  .profilePage > :not(.modalBack) {
+    display: none !important;
+  }
+
+  .shell,
+  .content,
+  .page,
+  .modulePage,
+  .profilePage {
+    display: block !important;
+    width: 210mm !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+    overflow: visible !important;
+  }
+
+  .modalBack,
+  .cvPreviewModal,
+  .cvPreviewModal *,
+  .cvPreviewModal .cvDocumentViewport,
+  .cvPreviewModal .cvDocumentSheet,
+  .cvPreviewModal .cvDocumentPage {
+    visibility: visible !important;
+  }
+
+  .modalBack,
+  .cvPreviewModal {
+    position: absolute !important;
+    inset: 0 !important;
+    display: block !important;
+    width: 210mm !important;
+    min-width: 210mm !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    overflow: visible !important;
+  }
+
+  .cvPreviewModal > button,
+  .cvPreviewModal > h2,
+  .cvPreviewModal > p {
+    display: none !important;
+  }
+
+  .cvPreviewModal .cvDocumentViewport {
+    display: block !important;
+    width: 210mm !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    transform: none !important;
+  }
+
+  .cvPreviewModal .cvDocumentSheet {
+    width: 210mm !important;
+    height: 297mm !important;
+    overflow: hidden !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    page-break-after: always;
+    break-after: page;
+    break-inside: avoid;
+  }
+
+  .cvPreviewModal .cvDocumentSheet:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  .cvPreviewModal .cvDocumentPage {
+    transform: none !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    min-height: 297mm !important;
+    overflow: hidden !important;
+  }
+
+  .cvDocumentMeasure,
+  .liveResumePreview {
+    display: none !important;
+  }
+}

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   LayoutDashboard,
   FileText,
@@ -1011,7 +1011,7 @@ function ModulePage({
 }) {
   const Icon = nav.find(([n]) => n === name)?.[1] || Settings;
   return (
-    <section className="modulePage">
+    <section className="modulePage jobSearchPage">
       <div className="moduleHero">
         <span>
           <Icon />
@@ -1156,7 +1156,7 @@ function ResumesPage({
     }
   };
   return (
-    <section className="modulePage">
+    <section className="modulePage resumesPage">
       <div className="moduleHero">
         <span>
           <FileText />
@@ -1179,13 +1179,13 @@ function ResumesPage({
           <button onClick={upload}>Upload resume</button>
         </div>
       ) : (
-        <div className="resultGrid">
+        <div className="resultGrid resumesGrid">
           {resumes.map((resume) => (
-            <article className="resultCard" key={resume.id}>
+            <article className="resultCard resumeCard" key={resume.id}>
               <div className="resultTitle">
                 <FileText />
                 <div>
-                  <h3>{resume.filename}</h3>
+                  <h3 title={resume.filename}>{resume.filename}</h3>
                   <small>
                     {new Date(resume.created_at).toLocaleDateString()} ·{" "}
                     {Math.ceil(resume.size_bytes / 1024)} KB
@@ -1198,11 +1198,15 @@ function ResumesPage({
                   <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={typeof resume.score === "number" ? resume.score : 0}><i style={{ width: `${typeof resume.score === "number" ? Math.max(0, Math.min(100, resume.score)) : 0}%` }} /></div>
                 </div>
               </div>
+              <div className="resumeCardBody">
+              <div className="resumeOverview">
+              <h4>Skills & keywords</h4>
               {Boolean(resume.keywords?.length) && (
                 <div className="keywordList">
-                  {resume.keywords!.map((keyword) => (
+                  {resume.keywords!.slice(0, 14).map((keyword) => (
                     <span key={keyword}>{keyword}</span>
                   ))}
+                  {resume.keywords!.length > 14 && <span className="moreKeyword">+{resume.keywords!.length - 14} more</span>}
                 </div>
               )}
               <button
@@ -1212,16 +1216,14 @@ function ResumesPage({
                 <Sparkles size={15} />
                 Find suggested jobs for this CV
               </button>
+              {!resume.keywords?.length && <p className="resumeNoKeywords">No keywords detected yet. Upload a resume with selectable text to improve matching.</p>}
+              </div>
+              <div className="resumeFeedback">
               <h4>Resume quality feedback</h4>
-              <small>{resume.provider && resume.provider !== "heuristic" && resume.provider !== "statistical" ? `AI feedback: ${resume.provider}` : "Checklist feedback (AI fallback)"}. The readiness score is an internal estimate, not an employer ATS result.</small>
-              <ul>
-                {[
-                  ...(resume.strengths || []),
-                  ...(resume.improvements || []),
-                ].map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
+              <p className="resumeFeedbackNote">{resume.provider && !["heuristic", "statistical", "builder-checklist"].includes(resume.provider) ? "AI-assisted feedback" : "Resume checklist"}. This readiness estimate is not an employer ATS score.</p>
+              {Boolean(resume.strengths?.length) && <div className="resumeFeedbackGroup"><h5>What works well</h5><ul>{resume.strengths!.map((item, index) => <li key={index}>{item}</li>)}</ul></div>}
+              {Boolean(resume.improvements?.length) && <div className="resumeFeedbackGroup"><h5>Ways to improve</h5><ul>{resume.improvements!.map((item, index) => <li key={index}>{item}</li>)}</ul></div>}
+              {!resume.strengths?.length && !resume.improvements?.length && <p className="resumeFeedbackNote">Feedback is not available for this resume yet.</p>}
               {Boolean(resume.ats_breakdown?.length) && (
                 <details className="atsExplanation">
                   <summary>How this readiness score is calculated</summary>
@@ -1240,6 +1242,8 @@ function ResumesPage({
                   <p>{resume.content_preview}</p>
                 </details>
               )}
+              </div>
+              </div>
               <div className="resumeLinks">
                 <>
                   {resume.source_type === "ai_cv_builder" && resume.builder_snapshot && <button className="editResume" onClick={() => editBuilder(resume)}><i className="bi bi-pencil" /> Edit in AI CV Builder</button>}
@@ -1424,7 +1428,7 @@ function JobSearch({
     }
   };
   return (
-    <section className="modulePage">
+    <section className="modulePage jobSearchPage">
       <div className="moduleHero">
         <span>
           <BriefcaseBusiness />
@@ -1442,27 +1446,36 @@ function JobSearch({
           void search();
         }}
       >
-        <select
-          value={resumeId}
-          onChange={(event) => setResumeId(event.target.value)}
-        >
-          <option value="">Search without a resume</option>
-          {resumes.map((resume) => (
-            <option value={resume.id} key={resume.id}>
-              {resume.filename}
-            </option>
-          ))}
-        </select>
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Role or keywords"
-        />
-        <input
-          value={location}
-          onChange={(event) => setLocation(event.target.value)}
-          placeholder="Location"
-        />
+        <label>
+          <span>Resume source</span>
+          <select
+            value={resumeId}
+            onChange={(event) => setResumeId(event.target.value)}
+          >
+            <option value="">Search without a resume</option>
+            {resumes.map((resume) => (
+              <option value={resume.id} key={resume.id}>
+                {resume.filename}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Target role</span>
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="e.g. Software engineer"
+          />
+        </label>
+        <label>
+          <span>Location</span>
+          <input
+            value={location}
+            onChange={(event) => setLocation(event.target.value)}
+            placeholder="e.g. India"
+          />
+        </label>
         <button className="primary" disabled={busy}>
           <Search size={17} />
           {busy ? "Matching…" : "Find matching jobs"}
@@ -1489,7 +1502,7 @@ function JobSearch({
                 </small>
               </div>
               {job.matchScore !== undefined ? (
-                <strong>{job.matchScore}%</strong>
+                <strong className="jobMatchScore"><span>{job.matchScore}</span>%</strong>
               ) : (
                 <em>{job.source}</em>
               )}
@@ -1601,14 +1614,10 @@ function CoverLetterWorkspace({ resumes }: { resumes: ResumeData[] }) {
   const generate = async (form: HTMLFormElement) => {
     const values = Object.fromEntries(new FormData(form));
     const resumeId = String(values.resumeId || "");
-    if (!resumeId) {
-      setError("Select a resume.");
-      return;
-    }
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(`/api/resumes/${resumeId}/cover-letter`, {
+      const response = await fetch(resumeId ? `/api/resumes/${resumeId}/cover-letter` : "/api/cover-letters", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(values),
@@ -1634,8 +1643,8 @@ function CoverLetterWorkspace({ resumes }: { resumes: ResumeData[] }) {
           <p>AI APPLICATION WRITER</p>
           <h1>Cover letter and HR email</h1>
           <h2>
-            Generate a professional application package grounded in your
-            uploaded resume.
+            Generate a professional application package from a selected CV, or
+            from your portfolio and profile when no CV is selected.
           </h2>
         </div>
       </div>
@@ -1649,9 +1658,10 @@ function CoverLetterWorkspace({ resumes }: { resumes: ResumeData[] }) {
         >
           <label>
             Resume
-            <select name="resumeId" required defaultValue="">
-              <option value="" disabled>
-                Select an uploaded resume
+            <small>Optional. Leave blank to use your portfolio and profile.</small>
+            <select name="resumeId" defaultValue="">
+              <option value="">
+                Use portfolio and profile instead
               </option>
               {resumes.map((resume) => (
                 <option key={resume.id} value={resume.id}>
@@ -1697,7 +1707,7 @@ function CoverLetterWorkspace({ resumes }: { resumes: ResumeData[] }) {
             />
           </label>
           {error && <div className="authMessage error">{error}</div>}
-          <button className="primary" disabled={busy || resumes.length === 0}>
+          <button className="primary" disabled={busy}>
             <Sparkles size={16} />
             {busy
               ? "Generating application package…"
@@ -1746,7 +1756,8 @@ function CoverLetterWorkspace({ resumes }: { resumes: ResumeData[] }) {
             <h3>Your generated package will appear here</h3>
             <p>
               It will include a formatted cover letter, HR email subject, and
-              email body.
+              email body. Select a CV for resume-grounded output, or leave it
+              blank to use your portfolio and profile.
             </p>
           </div>
         )}
@@ -1761,8 +1772,9 @@ function GeneratedDocumentsHistory({ refresh }: { refresh: number }) {
   const [selected, setSelected] = useState<GeneratedDocument | null>(null);
   useEffect(() => {
     fetch("/api/generated-documents")
-      .then((response) => response.json())
-      .then((data) => setDocuments(data.documents || []));
+      .then(async (response) => response.ok ? response.json() : { documents: [] })
+      .then((data) => setDocuments(data.documents || []))
+      .catch(() => setDocuments([]));
   }, [refresh]);
   const download = (item: GeneratedDocument) =>
     item.type === "cover-letter"
@@ -1934,9 +1946,70 @@ function WorkspaceCvToggle({ checked, onChange }: { checked: boolean; onChange: 
   return <label className="cvToggle" title={checked ? "Included in generated CV" : "Saved in workspace but hidden from CV"}><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} /><span /><b>{checked ? "In CV" : "Hidden"}</b></label>;
 }
 
+const splitTags = (value?: string) =>
+  String(value || "")
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+
+function TagInput({
+  name,
+  placeholder,
+  tags,
+  onChange,
+}: {
+  name: string;
+  placeholder: string;
+  tags: string[];
+  onChange: (tags: string[]) => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const addTag = () => {
+    const next = draft.trim().replace(/,$/, "");
+    if (!next) return;
+    const exists = tags.some((tag) => tag.toLowerCase() === next.toLowerCase());
+    if (!exists) onChange([...tags, next]);
+    setDraft("");
+  };
+  const removeTag = (tag: string) => onChange(tags.filter((item) => item !== tag));
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter" || event.key === ",") {
+      event.preventDefault();
+      addTag();
+    }
+    if (event.key === "Backspace" && !draft && tags.length) {
+      onChange(tags.slice(0, -1));
+    }
+  };
+  return (
+    <div className="workspaceTagInput">
+      <input type="hidden" name={name} value={tags.join(", ")} />
+      <div className="workspaceTags" aria-label={placeholder}>
+        {tags.map((tag) => (
+          <span key={tag}>
+            {tag}
+            <button type="button" aria-label={`Remove ${tag}`} onClick={() => removeTag(tag)}>
+              <X size={12} />
+            </button>
+          </span>
+        ))}
+        <input
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={handleKeyDown}
+          onBlur={addTag}
+          placeholder={tags.length ? "Add another..." : placeholder}
+        />
+      </div>
+    </div>
+  );
+}
+
 function WorkspaceItems({ kind }: { kind: "projects" | "certificates" }) {
   const [items, setItems] = useState<GenericItem[]>([]),
     [error, setError] = useState("");
+  const [technologyTags, setTechnologyTags] = useState<string[]>([]);
+  const [skillTags, setSkillTags] = useState<string[]>([]);
   const certificate = kind === "certificates";
   const load = () =>
     fetch(`/api/${kind}`)
@@ -1958,6 +2031,8 @@ function WorkspaceItems({ kind }: { kind: "projects" | "certificates" }) {
       return;
     }
     form.reset();
+    setTechnologyTags([]);
+    setSkillTags([]);
     await load();
   };
   const remove = async (id: string) => {
@@ -1970,6 +2045,20 @@ function WorkspaceItems({ kind }: { kind: "projects" | "certificates" }) {
     setItems(items.map(value => value.id === item.id ? { ...value, include_in_cv: includeInCv } : value));
   };
   const Icon = certificate ? Award : FolderKanban;
+  const Field = ({
+    label,
+    wide,
+    children,
+  }: {
+    label: string;
+    wide?: boolean;
+    children: React.ReactNode;
+  }) => (
+    <label className={wide ? "workspaceField wide" : "workspaceField"}>
+      <span>{label}</span>
+      {children}
+    </label>
+  );
   return (
     <section className="modulePage">
       <div className="moduleHero">
@@ -1987,7 +2076,7 @@ function WorkspaceItems({ kind }: { kind: "projects" | "certificates" }) {
         </div>
       </div>
       <form
-        className="inlineCreate"
+        className="workspaceForm"
         onSubmit={(e) => {
           e.preventDefault();
           void add(e.currentTarget);
@@ -1995,27 +2084,59 @@ function WorkspaceItems({ kind }: { kind: "projects" | "certificates" }) {
       >
         {certificate ? (
           <>
-            <input name="name" placeholder="Certificate name" required />
-            <input name="issuer" placeholder="Issuer" required />
-            <input name="issuedAt" type="date" />
-            <input name="expiresAt" type="date" aria-label="Expiry date" />
-            <input name="credentialId" placeholder="Credential ID" />
-            <input name="skills" placeholder="Skills covered (Python, SQL, ... )" />
-            <input name="url" type="url" placeholder="Credential URL" />
+            <Field label="Certificate name">
+              <input name="name" placeholder="AWS Cloud Practitioner" required />
+            </Field>
+            <Field label="Issuer">
+              <input name="issuer" placeholder="Amazon Web Services" required />
+            </Field>
+            <Field label="Issued date">
+              <input name="issuedAt" type="date" />
+            </Field>
+            <Field label="Expiry date">
+              <input name="expiresAt" type="date" />
+            </Field>
+            <Field label="Credential ID">
+              <input name="credentialId" placeholder="Optional ID" />
+            </Field>
+            <Field label="Credential URL">
+              <input name="url" type="url" placeholder="https://..." />
+            </Field>
+            <Field label="Skills covered" wide>
+              <TagInput name="skills" placeholder="Add skills like Python, SQL, Cloud" tags={skillTags} onChange={setSkillTags} />
+            </Field>
           </>
         ) : (
           <>
-            <input name="title" placeholder="Project title" required />
-            <input name="role" placeholder="Your role (e.g. Data Analyst)" />
-            <input name="startDate" type="date" aria-label="Start date" />
-            <input name="endDate" type="date" aria-label="End date" />
-            <input name="technologies" placeholder="Technologies" />
-            <input name="description" placeholder="What you built or analyzed" required />
-            <input name="outcomes" placeholder="Outcomes (metrics, scale, time saved)" />
-            <input name="url" type="url" placeholder="Project URL" />
+            <Field label="Project title">
+              <input name="title" placeholder="Customer churn dashboard" required />
+            </Field>
+            <Field label="Your role">
+              <input name="role" placeholder="Data Analyst" />
+            </Field>
+            <Field label="Start date">
+              <input name="startDate" type="date" />
+            </Field>
+            <Field label="End date">
+              <input name="endDate" type="date" />
+            </Field>
+            <Field label="Project URL">
+              <input name="url" type="url" placeholder="https://..." />
+            </Field>
+            <Field label="Technologies" wide>
+              <TagInput name="technologies" placeholder="Add tools like React, PostgreSQL, Power BI" tags={technologyTags} onChange={setTechnologyTags} />
+            </Field>
+            <Field label="Description" wide>
+              <textarea name="description" placeholder="Briefly explain what you built, analyzed, automated, or shipped." required />
+            </Field>
+            <Field label="Outcomes" wide>
+              <textarea name="outcomes" placeholder="Add measurable results, business impact, scale, or time saved." />
+            </Field>
           </>
         )}
-        <button>Add {certificate ? "certificate" : "project"}</button>
+        <div className="workspaceFormActions">
+          <button type="submit">Add {certificate ? "certificate" : "project"}</button>
+        </div>
       </form>
       {error && <div className="authMessage error">{error}</div>}
       <div className="workspaceList">
@@ -2025,9 +2146,14 @@ function WorkspaceItems({ kind }: { kind: "projects" | "certificates" }) {
               <h3>{certificate ? item.name : item.title}</h3>
               <p>
                 {certificate
-                  ? `${item.issuer}${item.issued_at ? ` · Issued ${item.issued_at}` : ""}${item.expires_at ? ` · Expires ${item.expires_at}` : ""}${item.skills ? ` · ${item.skills}` : ""}`
-                  : `${item.role ? `${item.role} · ` : ""}${item.description}${item.technologies ? ` · ${item.technologies}` : ""}${item.outcomes ? ` · ${item.outcomes}` : ""}`}
+                  ? `${item.issuer}${item.issued_at ? ` · Issued ${item.issued_at}` : ""}${item.expires_at ? ` · Expires ${item.expires_at}` : ""}`
+                  : `${item.role ? `${item.role} · ` : ""}${item.description}${item.outcomes ? ` · ${item.outcomes}` : ""}`}
               </p>
+              <div className="workspaceItemTags">
+                {(certificate ? splitTags(item.skills) : splitTags(item.technologies)).map((tag) => (
+                  <span key={tag}>{tag}</span>
+                ))}
+              </div>
             </div>
             <WorkspaceCvToggle checked={item.include_in_cv !== false} onChange={(checked) => void toggleCv(item, checked)} />
             {(certificate ? item.credential_url : item.project_url) && (
@@ -2102,11 +2228,22 @@ function PortfolioPage() {
 
 function AnalyticsPage() {
   const [data, setData] = useState<any>(null);
+  const [error, setError] = useState("");
+  const [retry, setRetry] = useState(0);
   useEffect(() => {
-    fetch("/api/analytics")
-      .then((r) => r.json())
-      .then(setData);
-  }, []);
+    const controller = new AbortController();
+    setError("");
+    fetch("/api/analytics", { signal: controller.signal })
+      .then(async response => {
+        const result = await response.json().catch(() => null);
+        if (!response.ok || !result?.funnel) throw new Error(result?.error || "Could not load analytics. Please try again.");
+        return result;
+      })
+      .then(result => { if (!controller.signal.aborted) setData(result); })
+      .catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "Could not load analytics."); });
+    return () => controller.abort();
+  }, [retry]);
+  if (error) return <div className="moduleEmpty" role="alert"><p>{error}</p><button type="button" className="primary" onClick={() => setRetry(value => value + 1)}>Retry</button></div>;
   if (!data) return <div className="moduleEmpty">Loading analytics…</div>;
   return (
     <section className="modulePage">
@@ -2273,3 +2410,4 @@ function ActionModal({
     </div>
   );
 }
+

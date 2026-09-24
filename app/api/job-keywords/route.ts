@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { extractJobKeywordsWithAI } from '@/lib/ai';
 import { getSessionUser } from '@/lib/auth';
 import { apiError } from '@/lib/http';
-import { extractJobKeywords } from '@/lib/job-keywords';
+import { extractJobKeywords, sanitizeKeywordList } from '@/lib/job-keywords';
 
 export const maxDuration = 60;
 
@@ -17,16 +17,10 @@ export async function POST(request: Request) {
   const detected = extractJobKeywords(jobDescription, 100);
   try {
     const ai = await extractJobKeywordsWithAI(jobDescription);
-    const seen = new Set<string>();
-    const keywords = [...detected, ...ai.keywords].filter(keyword => {
-      const key = keyword.toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    }).slice(0, 80);
+    const keywords = sanitizeKeywordList([...detected, ...ai.keywords], 50);
     return NextResponse.json({ keywords, provider: ai.provider });
   } catch (error) {
     console.error('Job keyword extraction failed; using deterministic extraction.', error);
-    return NextResponse.json({ keywords: detected, provider: 'deterministic' });
+    return NextResponse.json({ keywords: sanitizeKeywordList(detected, 50), provider: 'deterministic' });
   }
 }

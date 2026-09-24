@@ -7,7 +7,10 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const user = await getSessionUser();
   if (!user) return apiError('Authentication required.', 401);
   const { id } = await context.params;
-  const [letter] = await database<{ cover_letter:string; company:string; job_title:string }[]>`
+  const [{ has_user_id }] = await database<{ has_user_id: boolean }[]>`select exists(select 1 from information_schema.columns where table_name='cover_letters' and column_name='user_id') has_user_id`;
+  const [letter] = has_user_id ? await database<{ cover_letter:string; company:string; job_title:string }[]>`
+    select c.cover_letter,c.company,c.job_title from cover_letters c where c.id=${id} and c.user_id=${user.id}
+  ` : await database<{ cover_letter:string; company:string; job_title:string }[]>`
     select c.cover_letter,c.company,c.job_title from cover_letters c join resumes r on r.id=c.resume_id where c.id=${id} and r.user_id=${user.id}
   `;
   if (!letter) return apiError('Cover letter not found.', 404);

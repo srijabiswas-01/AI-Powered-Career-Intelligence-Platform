@@ -6,6 +6,7 @@ import { analyzeResumeText } from '@/lib/ats';
 import { reviewResumeWithAI } from '@/lib/ai';
 import { database } from '@/lib/db';
 import { apiError } from '@/lib/http';
+import { sanitizeKeywordList } from '@/lib/job-keywords';
 
 export const maxDuration = 120;
 export const runtime = 'nodejs';
@@ -26,7 +27,7 @@ export async function GET() {
   `;
   const resumes = rows.map(({ content, ...resume }) => ({
     ...resume,
-    keywords: resume.keywords?.length ? resume.keywords : analyzeResumeText(content || '').keywords,
+    keywords: sanitizeKeywordList(resume.keywords?.length ? resume.keywords : analyzeResumeText(content || '').keywords, 16),
     ats_breakdown: content ? analyzeResumeText(content).breakdown : [],
     extraction_status: content ? 'ready' : 'failed',
   }));
@@ -93,7 +94,7 @@ export async function POST(request: Request) {
     let strengths = result.strengths, improvements = result.improvements, keywords = result.keywords, provider = 'heuristic';
     try {
       const ai = await reviewResumeWithAI(content);
-      strengths = ai.strengths; improvements = ai.improvements; keywords = ai.keywords; provider = ai.provider;
+      strengths = ai.strengths; improvements = ai.improvements; keywords = sanitizeKeywordList(ai.keywords, 16); provider = ai.provider;
     } catch (error) {
       console.warn('AI resume review failed; using heuristic fallback', error);
     }

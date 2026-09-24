@@ -1,25 +1,13 @@
 import { getSessionUser } from '@/lib/auth';
 import { analyzeResumeText } from '@/lib/ats';
 import { tailorProfessionalSummaryWithAI } from '@/lib/ai';
+import { buildCvDocument, cvDocumentText } from '@/lib/cv-document';
+import { createCvDocx } from '@/lib/cv-docx';
 import { database } from '@/lib/db';
 import { apiError } from '@/lib/http';
-import { createProfessionalDocx } from '@/lib/professional-docx';
 
 export const maxDuration = 60;
 
-const lines = (value: unknown) => String(value ?? '').split(/\r?\n/).map(item => item.trim()).filter(Boolean);
-const embeddedLink = (label: unknown, url: unknown) => {
-  const text = String(label ?? '').replace(/[\[\]]/g, '').trim();
-  const rawUrl = String(url ?? '').trim();
-  if (!rawUrl) return text;
-  const target = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl.replace(/^\/+/, '')}`;
-  return `[${text}](${target})`;
-};
-const month = (value: unknown) => {
-  const match = /^(\d{4})-(\d{2})/.exec(String(value ?? ''));
-  if (!match) return String(value ?? '');
-  return new Intl.DateTimeFormat('en', { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1)));
-};
 async function generateResume(request: Request) {
   const user = await getSessionUser();
   if (!user) return apiError('Authentication required.', 401);
@@ -39,16 +27,22 @@ async function generateResume(request: Request) {
   const selectedCertificates = new Set(certificateIds);
   const targetRole = String(body?.targetRole || params.get('role') || profile.job_title || profile.headline || '').slice(0, 150);
   const jobDescription = String(body?.jobDescription || '').trim().slice(0, 12_000);
+  const referralSource = body?.referral && typeof body.referral === 'object' ? body.referral : {};
+  const referral = {
+    details: String(referralSource?.details || '').trim().slice(0, 500),
+    email: String(referralSource?.email || '').trim().slice(0, 180),
+    phone: String(referralSource?.phone || '').trim().slice(0, 60),
+    includeInCv: referralSource?.includeInCv !== false,
+  };
   const allProjects = await database<any[]>`select id,title,description,technologies,project_url,role,start_date,end_date,outcomes,include_in_cv from projects where user_id=${user.id} and include_in_cv=true order by created_at desc`;
   const allCertificates = await database<any[]>`select id,name,issuer,issued_at,credential_url,credential_id,expires_at,skills,include_in_cv from certificates where user_id=${user.id} and include_in_cv=true order by issued_at desc nulls last, created_at desc`;
   const projects = Array.isArray(body?.projectIds) || params.has('projects') ? allProjects.filter(item => selectedProjects.has(String(item.id))) : allProjects;
   const certificates = Array.isArray(body?.certificateIds) || params.has('certificates') ? allCertificates.filter(item => selectedCertificates.has(String(item.id))) : allCertificates;
   if (!profile.summary || !skills.length || (!experience.length && !education.length)) return apiError('Add a summary, skills, and experience or education before generating your CV.', 422);
   const preferences = profile.cv_preferences_json || {};
-  const contact = [preferences.location === false ? '' : profile.location, preferences.phone === false ? '' : profile.phone, user.email, ...links.map((item: any) => embeddedLink(item.platform === 'Other' ? item.label || 'Professional link' : item.platform || item.label || 'Professional link', item.url))].filter(Boolean).join(' | ');
-  const content: string[] = [user.name, contact];
-  let professionalSummary = String(profile.summary || '').replace(/\s+/g, ' ').trim();
-  if (preferences.summary !== false && jobDescription) {
+  const suppliedSummary = typeof body?.professionalSummary === 'string' ? body.professionalSummary.trim().slice(0, 2500) : '';
+  let professionalSummary = String((jobDescription && suppliedSummary) || profile.summary || profile.bio || '').replace(/\s+/g, ' ').trim();
+  if (preferences.summary !== false && jobDescription && !suppliedSummary) {
     const evidence = [
       `Skills: ${skills.map((item: any) => item.name).filter(Boolean).join(', ')}`,
       ...experience.map((item: any) => `Experience: ${item.title || ''} | ${item.company || ''} | ${item.description || ''}`),
@@ -64,22 +58,29 @@ async function generateResume(request: Request) {
       console.error('Professional summary tailoring failed; using saved summary.', error);
     }
   }
-  if (preferences.summary !== false) content.push('PROFESSIONAL SUMMARY', professionalSummary);
-  const grouped = new Map<string, string[]>();
-  for (const skill of skills) grouped.set(skill.category || 'Other', [...(grouped.get(skill.category || 'Other') || []), skill.name]);
-  content.push('TECHNICAL SKILLS', ...[...grouped].map(([category, values]) => `${category}: ${values.join(', ')}`));
-  if (experience.length) { content.push('PROFESSIONAL EXPERIENCE'); for (const item of [...experience].sort((a, b) => String(b.startDate).localeCompare(String(a.startDate)))) { content.push(`${item.title}${item.company ? ` | ${item.company}` : ''}${item.location ? ` | ${item.location}` : ''}`, `${month(item.startDate)} – ${item.current ? 'Present' : month(item.endDate)}`, ...lines(item.description).map(line => `- ${line.replace(/^[-•]\s*/, '')}`)); } }
-  if (projects.length) { content.push('PROJECTS'); for (const item of projects) { content.push(`${item.title}${item.role ? ` | ${item.role}` : ''}${item.technologies ? ` | ${item.technologies}` : ''}${item.project_url ? ` | ${embeddedLink('GitHub / Demo', item.project_url)}` : ''}`, [item.start_date && `${month(item.start_date)} – ${month(item.end_date) || 'Present'}`].filter(Boolean).join(''), ...lines(item.description).map(line => `- ${line.replace(/^[-•]\s*/, '')}`), ...lines(item.outcomes).map(line => `- Outcome: ${line.replace(/^[-•]\s*/, '')}`)); } }
-  if (education.length) { content.push('EDUCATION'); for (const item of [...education].sort((a, b) => String(b.endDate).localeCompare(String(a.endDate)))) { content.push(`${item.degree}${item.field ? ` in ${item.field}` : ''}${item.institution ? ` | ${item.institution}` : ''}`, [item.startDate && `${month(item.startDate)} – ${month(item.endDate) || 'Present'}`, item.grade, item.location].filter(Boolean).join(' | '), ...lines(item.description).map(line => `- ${line.replace(/^[-•]\s*/, '')}`)); } }
-  if (certificates.length) content.push('CERTIFICATIONS', ...certificates.map((item: any) => `${item.credential_url ? embeddedLink(item.name, item.credential_url) : item.name}${item.issuer ? ` — ${item.issuer}` : ''}${item.issued_at ? ` (${String(item.issued_at).slice(0, 10)})` : ''}${item.expires_at ? ` | Expires ${String(item.expires_at).slice(0, 10)}` : ''}${item.credential_id ? ` | Credential ID: ${item.credential_id}` : ''}${item.skills ? ` | Skills: ${item.skills}` : ''}`));
-  if (achievements.length) content.push('ACHIEVEMENTS', ...achievements.map((item: any) => `- ${item.name}`));
-  if (publications.length) content.push('RESEARCH & PUBLICATIONS', ...publications.map((item: any) => `- ${item.url ? embeddedLink(item.title, item.url) : item.title}${item.type ? ` | ${item.type}` : ''}${item.status ? ` | ${item.status}` : ''}${item.publisher ? ` | ${item.publisher}` : ''}${item.date ? ` | ${item.date}` : ''}`));
-  if (languages.length) content.push('LANGUAGES', languages.map((item: any) => `${item.name}${item.level ? ` (${item.level})` : ''}`).join(', '));
-  if (hobbies.length) content.push('INTERESTS', hobbies.map((item: any) => item.name).join(', '));
-  const resumeContent = content.filter(Boolean).join('\n');
-  const buffer = await createProfessionalDocx({ content: resumeContent, title: user.name, subtitle: targetRole || undefined, documentType: 'resume' });
+  const cvDocument = buildCvDocument({
+    name: user.name,
+    headline: targetRole || profile.job_title || profile.headline || '',
+    email: user.email,
+    phone: preferences.phone === false ? '' : profile.phone,
+    location: preferences.location === false ? '' : profile.location,
+    summary: preferences.summary === false ? '' : professionalSummary,
+    skills,
+    experience,
+    education,
+    projects,
+    certificates,
+    links,
+    languages,
+    achievements,
+    publications,
+    hobbies,
+    referral,
+  });
+  const resumeContent = cvDocumentText(cvDocument);
+  const buffer = await createCvDocx(cvDocument);
   const filename = `${user.name.replace(/[^a-z0-9]+/gi, '_')}_CV.docx`;
-  const snapshot = { id: String(body?.variantId || ''), name: String(body?.variantName || targetRole || 'AI CV Builder CV').slice(0, 100), targetRole, jobDescription, projectIds, certificateIds, visibility: body?.visibility || {}, preferences };
+  const snapshot = { id: String(body?.variantId || ''), name: String(body?.variantName || targetRole || 'AI CV Builder CV').slice(0, 100), targetRole, jobDescription, projectIds, certificateIds, visibility: body?.visibility || {}, preferences, referral };
   const analysis = analyzeResumeText(resumeContent, jobDescription);
   const [existingResume] = body?.variantId ? await database<{ id: string }[]>`select id from resumes where user_id=${user.id} and source_type='ai_cv_builder' and builder_snapshot->>'id'=${String(body.variantId)}` : [];
   const [savedResume] = existingResume ? await database`

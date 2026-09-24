@@ -29,6 +29,35 @@ const definitions: KeywordDefinition[] = [
   { term: 'Data Analysis', category: 'Data', aliases: ['data analysis', 'data analyst', 'data analysts', 'analytics'] },
   { term: 'Large Datasets', category: 'Data', aliases: ['large dataset'] },
   { term: 'Data Management', category: 'Data' },
+  { term: 'Business Intelligence', category: 'Data', aliases: ['business intelligence', 'bi reporting'] },
+  { term: 'Power BI', category: 'Data', aliases: ['power bi', 'powerbi'] },
+  { term: 'Tableau', category: 'Data' },
+  { term: 'Microsoft Excel', category: 'Data', aliases: ['microsoft excel', 'excel', 'ms excel'] },
+  { term: 'DAX', category: 'Data' },
+  { term: 'Power Query', category: 'Data' },
+  { term: 'SQL Server', category: 'Data', aliases: ['sql server', 'mssql'] },
+  { term: 'SSIS', category: 'Data' },
+  { term: 'SSRS', category: 'Data' },
+  { term: 'ETL', category: 'Data', aliases: ['etl', 'extract transform load'] },
+  { term: 'Data Visualization', category: 'Data', aliases: ['data visualization', 'data visualisation'] },
+  { term: 'Dashboard Development', category: 'Data', aliases: ['dashboard development', 'dashboard reporting', 'dashboard'] },
+  { term: 'KPI Reporting', category: 'Data', aliases: ['kpi reporting', 'kpis'] },
+  { term: 'Data Modeling', category: 'Data', aliases: ['data modeling', 'data modelling'] },
+  { term: 'Data Cleaning', category: 'Data', aliases: ['data cleaning', 'cleaning validation'] },
+  { term: 'Data Validation', category: 'Data' },
+  { term: 'Exploratory Data Analysis', category: 'Data', aliases: ['exploratory data analysis', 'eda'] },
+  { term: 'Statistical Analysis', category: 'Data' },
+  { term: 'Predictive Analytics', category: 'Data' },
+  { term: 'Trend Analysis', category: 'Data' },
+  { term: 'Forecasting', category: 'Data' },
+  { term: 'Regression', category: 'Data' },
+  { term: 'Classification', category: 'Data' },
+  { term: 'Clustering', category: 'Data' },
+  { term: 'Time-Series Analysis', category: 'Data', aliases: ['time-series analysis', 'time series analysis'] },
+  { term: 'Relational Databases', category: 'Data', aliases: ['relational database', 'relational databases'] },
+  { term: 'Data Warehousing', category: 'Data' },
+  { term: 'Star Schema', category: 'Data' },
+  { term: 'Fact and Dimension Modeling', category: 'Data', aliases: ['fact and dimension modeling', 'fact and dimension modelling'] },
   { term: 'Data Quality', category: 'Data' },
   { term: 'Data Integrity', category: 'Data', aliases: ['data integrity', 'quality and integrity'] },
   { term: 'Data Preprocessing', category: 'Data', aliases: ['data preprocessing', 'preprocess data', 'preprocessing'] },
@@ -95,6 +124,36 @@ export function extractJobKeywords(value: string, limit = 100) {
   const text = normalize(value.replace(/https?:\/\/\S+/gi, ' '));
   if (!text.trim()) return [];
   return definitions.filter(definition => isPresent(text, definition)).slice(0, limit).map(definition => definition.term);
+}
+
+const weakKeywordWords = new Set('achievement achievements analysis applications basic candidate candidates career clear company contact content cv data detail employer essential experience feedback generation generated guide hidden information insight job keywords length matched missing profile project projects ready readiness resume resumes role section selected skills summary team terms text training work'.split(' '));
+
+function canonicalKeyword(value: string) {
+  const compact = normalize(value).trim();
+  const found = definitions.find(definition => [definition.term, ...(definition.aliases || [])].some(alias => normalize(alias).trim() === compact));
+  return found?.term;
+}
+
+export function sanitizeKeywordList(values: string[], limit = 20) {
+  const seen = new Set<string>();
+  const cleaned: string[] = [];
+  for (const raw of values) {
+    const value = String(raw || '').replace(/\[[^\]]+]\([^)]+\)/g, ' ').replace(/https?:\/\/\S+/gi, ' ').trim();
+    if (!value || /@/.test(value) || /\d{4,}/.test(value)) continue;
+    const canonicalTerm = canonicalKeyword(value);
+    const canonical = canonicalTerm || value.replace(/\s+/g, ' ').trim();
+    const normalized = normalize(canonical).trim();
+    const words = normalized.split(/\s+/).filter(Boolean);
+    if (!words.length || words.some(word => weakKeywordWords.has(word)) && !canonicalTerm) continue;
+    if (!canonicalTerm && (canonical.length < 3 || canonical.length > 55 || words.length > 4 || words.every(word => word.length < 4))) continue;
+    const key = normalized.replace(/[^a-z0-9+#.]+/g, ' ');
+    if (seen.has(key)) continue;
+    if (!canonicalTerm && cleaned.some(existing => normalize(existing).includes(` ${key} `) || key.includes(normalize(existing).trim()))) continue;
+    seen.add(key);
+    cleaned.push(canonical);
+    if (cleaned.length >= limit) break;
+  }
+  return cleaned;
 }
 
 export function keywordCategory(term: string) {

@@ -10,6 +10,12 @@ const SESSION_DAYS = 30;
 
 export type SessionUser = { id: string; name: string; email: string };
 
+function isDatabaseConnectionError(error: unknown) {
+  if (!error || typeof error !== 'object') return false;
+  const code = 'code' in error ? String(error.code) : '';
+  return code === 'CONNECT_TIMEOUT' || code === 'ECONNRESET' || code === 'ETIMEDOUT';
+}
+
 export function hashPassword(password: string) {
   const salt = randomBytes(16).toString('hex');
   const hash = scryptSync(password, salt, 64).toString('hex');
@@ -45,18 +51,30 @@ export async function createSession(userId: string) {
 export async function deleteSession() {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
-  if (token) await database`delete from sessions where token_hash = ${hashToken(token)}`;
+  if (token) {
+    try {
+      await database`delete from sessions where token_hash = ${hashToken(token)}`;
+    } catch (error) {
+      if (!isDatabaseConnectionError(error)) throw error;
+      console.warn('Could not delete server session because the database connection timed out.');
+    }
+  }
   cookieStore.delete(SESSION_COOKIE);
 }
 
 export async function getSessionUser(): Promise<SessionUser | null> {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
-  const [user] = await database<SessionUser[]>`
-    select u.id, u.name, u.email
-    from sessions s join users u on u.id = s.user_id
-    where s.token_hash = ${hashToken(token)} and s.expires_at > now()
-  `;
-  return user ?? null;
+  try {
+    const [user] = await database<SessionUser[]>`
+      select u.id, u.name, u.email
+      from sessions s join users u on u.id = s.user_id
+      where s.token_hash = ${hashToken(token)} and s.expires_at > now()
+    `;
+    return user ?? null;
+  } catch (error) {
+    if (!isDatabaseConnectionError(error)) throw error;
+    console.warn('Could not read session because the database connection timed out.');
+    return null;
+  }
 }
-
