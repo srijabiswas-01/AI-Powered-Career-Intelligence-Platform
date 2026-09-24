@@ -103,7 +103,19 @@ type DashboardData = {
     location?: string;
     applied_at: string;
   }>;
+  profileStrength: {
+    percentage: number;
+    completedSections: number;
+    totalSections: number;
+    sections: {
+      personalInformation: boolean;
+      workExperience: boolean;
+      skills: boolean;
+      certifications: boolean;
+    };
+  };
 };
+type SignedInUser = { name: string; email: string; avatarDataUrl?: string };
 const quick = [
   {
     title: "Analyze my resume",
@@ -183,7 +195,7 @@ export default function Home() {
   >("week");
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [loadingStep, setLoadingStep] = useState(0);
-  const [user, setUser] = useState({ name: "User", email: "" });
+  const [user, setUser] = useState<SignedInUser>({ name: "User", email: "", avatarDataUrl: "" });
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [refresh, setRefresh] = useState(0),
     [resumes, setResumes] = useState<ResumeData[]>([]),
@@ -195,6 +207,12 @@ export default function Home() {
         average_score: null,
       },
       applications: [],
+      profileStrength: {
+        percentage: 0,
+        completedSections: 0,
+        totalSections: 4,
+        sections: { personalInformation: false, workExperience: false, skills: false, certifications: false },
+      },
     });
   const [jobResumeId, setJobResumeId] = useState("");
   const [builderResume, setBuilderResume] = useState<ResumeData | null>(null);
@@ -207,7 +225,7 @@ export default function Home() {
         setAuthenticated(true);
       })
       .catch(() => setAuthenticated(false));
-  }, []);
+  }, [active]);
   useEffect(() => {
     const saved = localStorage.getItem("careerpilot-theme");
     const selected =
@@ -225,6 +243,16 @@ export default function Home() {
     window.addEventListener("keydown", closeDrawer);
     return () => { document.body.style.overflow = ""; window.removeEventListener("keydown", closeDrawer); };
   }, [mobile]);
+  useEffect(() => {
+    const focusGlobalSearch = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        document.getElementById("global-job-search")?.focus();
+      }
+    };
+    window.addEventListener("keydown", focusGlobalSearch);
+    return () => window.removeEventListener("keydown", focusGlobalSearch);
+  }, []);
   useEffect(() => {
     if (authenticated !== null) return;
     const timer = window.setInterval(
@@ -244,7 +272,7 @@ export default function Home() {
         if (resumeData.resumes) setResumes(resumeData.resumes);
       })
       .catch(() => act("Could not load dashboard data"));
-  }, [authenticated, refresh, dashboardPeriod]);
+  }, [authenticated, refresh, dashboardPeriod, active]);
   const act = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(""), 2600);
@@ -269,7 +297,7 @@ export default function Home() {
   }));
   const filtered =
     filter === "All" ? pipeline : pipeline.filter((j) => j.stage === filter);
-  const login = (signedInUser: { name: string; email: string }) => {
+  const login = (signedInUser: SignedInUser) => {
     setUser(signedInUser);
     setAuthenticated(true);
   };
@@ -376,32 +404,6 @@ export default function Home() {
             </button>
           ))}
         </nav>
-        <div className="sidebarBottom">
-          <button
-            className="profile"
-            onClick={() => setProfileOpen(!profileOpen)}
-          >
-            <div className="avatar">
-              {user.name
-                .split(" ")
-                .map((n) => n[0])
-                .join("")
-                .slice(0, 2)
-                .toUpperCase()}
-            </div>
-            <div>
-              <b>{user.name}</b>
-              <small>{user.email}</small>
-            </div>
-            <ChevronDown size={16} />
-          </button>
-          {profileOpen && (
-            <div className="profileMenu">
-              <button onClick={() => go("AI CV Builder")}>AI CV Builder</button>
-              <button onClick={logout}>Sign out</button>
-            </div>
-          )}
-        </div>
       </aside>
       {mobile && <button className="overlay" aria-label="Close navigation" onClick={() => setMobile(false)} />}
       <section className="content">
@@ -421,6 +423,7 @@ export default function Home() {
           >
             <Search size={17} />
             <input
+              id="global-job-search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search jobs, resumes, skills..."
@@ -447,6 +450,38 @@ export default function Home() {
               <Bell size={19} />
               <span className="notificationDot" aria-hidden="true" />
             </button>
+            <div className="headerProfile">
+              <button
+                className="profile"
+                onClick={() => setProfileOpen(!profileOpen)}
+                aria-expanded={profileOpen}
+                aria-haspopup="menu"
+              >
+                <div className="avatar">
+                  {user.avatarDataUrl ? (
+                    <img src={user.avatarDataUrl} alt="" />
+                  ) : (
+                    user.name
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .slice(0, 2)
+                      .toUpperCase()
+                  )}
+                </div>
+                <div className="headerProfileText">
+                  <b>{user.name}</b>
+                  <small>{user.email}</small>
+                </div>
+                <ChevronDown size={14} />
+              </button>
+              {profileOpen && (
+                <div className="profileMenu" role="menu">
+                  <button role="menuitem" onClick={() => go("AI CV Builder")}>AI CV Builder</button>
+                  <button role="menuitem" onClick={logout}>Sign out</button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
         <div className="page">
@@ -456,7 +491,7 @@ export default function Home() {
                 <div>
                   <p>YOUR CAREER WORKSPACE</p>
                   <h1>
-                    Welcome, {user.name.split(" ")[0]} <span>👋</span>
+                    Welcome, {user.name.split(" ")[0]}
                   </h1>
                   <h2>
                     Your dashboard reflects the selected reporting period.
@@ -679,26 +714,30 @@ export default function Home() {
                       <h3>Profile strength</h3>
                       <p>Complete your profile to stand out</p>
                     </div>
-                    <strong>0%</strong>
+                    <strong>{dashboard.profileStrength.percentage}%</strong>
                   </div>
                   <div className="longbar">
-                    <i style={{ width: "0%" }} />
+                    <i style={{ width: `${dashboard.profileStrength.percentage}%` }} />
                   </div>
                   <div className="checks">
-                    <button className="missing" onClick={() => go("AI CV Builder")}>
-                      <Plus /> Add personal information
+                    <button className={dashboard.profileStrength.sections.personalInformation ? "complete" : "missing"} onClick={() => go("AI CV Builder")}>
+                      {dashboard.profileStrength.sections.personalInformation ? <CircleCheck /> : <Plus />}
+                      {dashboard.profileStrength.sections.personalInformation ? "Personal information added" : "Add personal information"}
                     </button>
-                    <button className="missing" onClick={() => go("AI CV Builder")}>
-                      <Plus /> Add work experience
+                    <button className={dashboard.profileStrength.sections.workExperience ? "complete" : "missing"} onClick={() => go("AI CV Builder")}>
+                      {dashboard.profileStrength.sections.workExperience ? <CircleCheck /> : <Plus />}
+                      {dashboard.profileStrength.sections.workExperience ? "Work experience added" : "Add work experience"}
                     </button>
-                    <button className="missing" onClick={() => go("AI CV Builder")}>
-                      <Plus /> Add skills
+                    <button className={dashboard.profileStrength.sections.skills ? "complete" : "missing"} onClick={() => go("AI CV Builder")}>
+                      {dashboard.profileStrength.sections.skills ? <CircleCheck /> : <Plus />}
+                      {dashboard.profileStrength.sections.skills ? "Skills added" : "Add skills"}
                     </button>
                     <button
-                      className="missing"
+                      className={dashboard.profileStrength.sections.certifications ? "complete" : "missing"}
                       onClick={() => go("Certificates")}
                     >
-                      <Plus /> Add certifications
+                      {dashboard.profileStrength.sections.certifications ? <CircleCheck /> : <Plus />}
+                      {dashboard.profileStrength.sections.certifications ? "Certifications added" : "Add certifications"}
                     </button>
                   </div>
                 </section>
@@ -733,6 +772,7 @@ export default function Home() {
                 setJobResumeId(id);
                 go("Job Search");
               }}
+              createBuilder={() => { setBuilderResume(null); go("AI CV Builder"); }}
               editBuilder={(resume) => { setBuilderResume(resume); go("AI CV Builder"); }}
             />
           ) : active === "Job Search" ? (
@@ -1125,18 +1165,24 @@ function ResumesPage({
   upload,
   changed,
   suggest,
+  createBuilder,
   editBuilder,
 }: {
   resumes: ResumeData[];
   upload: () => void;
   changed: () => void;
   suggest: (id: string) => void;
+  createBuilder: () => void;
   editBuilder: (resume: ResumeData) => void;
 }) {
   const viewUrl = (resume: ResumeData) => `/api/resumes/${resume.id}/view`;
-  const [pendingDelete, setPendingDelete] = useState<ResumeData | null>(null),
+  const [resumeTab, setResumeTab] = useState<"uploaded" | "ai">("uploaded"),
+    [pendingDelete, setPendingDelete] = useState<ResumeData | null>(null),
     [deleting, setDeleting] = useState(false),
     [deleteError, setDeleteError] = useState("");
+  const uploadedResumes = resumes.filter((resume) => resume.source_type !== "ai_cv_builder");
+  const aiResumes = resumes.filter((resume) => resume.source_type === "ai_cv_builder");
+  const visibleResumes = resumeTab === "uploaded" ? uploadedResumes : aiResumes;
   const remove = async () => {
     if (!pendingDelete) return;
     setDeleting(true);
@@ -1164,23 +1210,35 @@ function ResumesPage({
         <div>
           <p>CAREERPILOT WORKSPACE</p>
           <h1>My Resumes</h1>
-          <h2>Upload a CV, then compare it with jobs using explainable keyword similarity.</h2>
+          <h2>{resumeTab === "uploaded" ? "Upload and analyze existing resume files." : "Create, review, and edit CVs generated with AI CV Builder."}</h2>
         </div>
-        <button className="primary" onClick={upload}>
-          <Plus size={17} />
-          Upload resume
+        <button className="primary" onClick={resumeTab === "uploaded" ? upload : createBuilder}>
+          {resumeTab === "uploaded" ? <Upload size={17} /> : <Sparkles size={17} />}
+          {resumeTab === "uploaded" ? "Upload resume" : "Create AI CV"}
         </button>
       </div>
-      {resumes.length === 0 ? (
+      <nav className="resumeTypeTabs" aria-label="Resume type">
+        <button className={resumeTab === "uploaded" ? "active" : ""} onClick={() => setResumeTab("uploaded")}>
+          <Upload size={16} />
+          <span>Uploaded Resumes</span>
+          <b>{uploadedResumes.length}</b>
+        </button>
+        <button className={resumeTab === "ai" ? "active" : ""} onClick={() => setResumeTab("ai")}>
+          <Sparkles size={16} />
+          <span>AI CVs</span>
+          <b>{aiResumes.length}</b>
+        </button>
+      </nav>
+      {visibleResumes.length === 0 ? (
         <div className="moduleEmpty">
-          <FileText />
-          <h3>No resumes uploaded</h3>
-          <p>Upload a PDF, DOCX, or TXT resume to find matching jobs.</p>
-          <button onClick={upload}>Upload resume</button>
+          {resumeTab === "uploaded" ? <Upload /> : <Sparkles />}
+          <h3>{resumeTab === "uploaded" ? "No uploaded resumes" : "No AI CVs created"}</h3>
+          <p>{resumeTab === "uploaded" ? "Upload a PDF, DOCX, or TXT resume to analyze it and find matching jobs." : "Build and save your first tailored CV using your professional profile."}</p>
+          <button onClick={resumeTab === "uploaded" ? upload : createBuilder}>{resumeTab === "uploaded" ? "Upload resume" : "Create AI CV"}</button>
         </div>
       ) : (
         <div className="resultGrid resumesGrid">
-          {resumes.map((resume) => (
+          {visibleResumes.map((resume) => (
             <article className="resultCard resumeCard" key={resume.id}>
               <div className="resultTitle">
                 <FileText />
@@ -1251,7 +1309,7 @@ function ResumesPage({
                     View resume <ArrowUpRight size={14} />
                   </a>
                   <a href={`/api/resumes/${resume.id}/download`}>
-                    Download original
+                    {resume.source_type === "ai_cv_builder" ? "Download CV" : "Download original"}
                   </a>
                 </>
                 <button
@@ -1336,6 +1394,12 @@ type SearchJob = {
   matchScore?: number;
   matchedKeywords?: string[];
 };
+const JOB_COUNTRIES = [
+  ["in", "India"], ["us", "United States"], ["gb", "United Kingdom"], ["ca", "Canada"],
+  ["au", "Australia"], ["sg", "Singapore"], ["de", "Germany"], ["fr", "France"],
+  ["nl", "Netherlands"], ["nz", "New Zealand"], ["za", "South Africa"], ["at", "Austria"],
+  ["br", "Brazil"], ["it", "Italy"], ["pl", "Poland"],
+] as const;
 function JobSearch({
   initialQuery,
   resumes,
@@ -1348,10 +1412,12 @@ function JobSearch({
   applicationSaved: () => void;
 }) {
   const [query, setQuery] = useState(initialQuery || "software engineer"),
-    [location, setLocation] = useState("India"),
+    [country, setCountry] = useState("in"),
+    [city, setCity] = useState(""),
     [resumeId, setResumeId] = useState(initialResumeId || resumes[0]?.id || ""),
     [jobs, setJobs] = useState<SearchJob[]>([]),
     [resumeKeywords, setResumeKeywords] = useState<string[]>([]),
+    [lastSearch, setLastSearch] = useState({ query: initialQuery || "software engineer", location: "India" }),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [tailoring, setTailoring] = useState(""),
@@ -1360,17 +1426,29 @@ function JobSearch({
       content: string;
       filename: string;
     } | null>(null);
-  const search = async () => {
+  const search = async (role = query, selectedCountry = country, selectedCity = city) => {
+    const targetRole = role.trim();
+    const targetCity = selectedCity.trim();
+    if (targetRole.length < 2) {
+      setError("Enter a target role to search for jobs.");
+      return;
+    }
+    if (!JOB_COUNTRIES.some(([code]) => code === selectedCountry)) {
+      setError("Select a supported country.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
-      const params = new URLSearchParams({ q: query, location });
+      const params = new URLSearchParams({ q: targetRole, country: selectedCountry });
+      if (targetCity) params.set("city", targetCity);
       if (resumeId) params.set("resumeId", resumeId);
       const response = await fetch(`/api/jobs?${params}`);
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Search failed");
       setJobs(result.jobs);
       setResumeKeywords(result.resumeKeywords || []);
+      setLastSearch({ query: result.query || targetRole, location: result.location || targetCity });
     } catch (error) {
       setError(error instanceof Error ? error.message : "Search failed");
     } finally {
@@ -1380,6 +1458,12 @@ function JobSearch({
   useEffect(() => {
     void search();
   }, []);
+  useEffect(() => {
+    const headerQuery = initialQuery.trim();
+    if (!headerQuery || headerQuery === query.trim()) return;
+    setQuery(headerQuery);
+    void search(headerQuery, country, city);
+  }, [initialQuery]);
   const apply = async (job: SearchJob) => {
     const response = await fetch("/api/applications", {
       method: "POST",
@@ -1465,18 +1549,27 @@ function JobSearch({
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="e.g. Software engineer"
+            placeholder="e.g. Data Analyst"
+            required
+            aria-label="Target role"
           />
         </label>
         <label>
-          <span>Location</span>
+          <span>Country</span>
+          <select value={country} onChange={(event) => setCountry(event.target.value)} aria-label="Job country">
+            {JOB_COUNTRIES.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+          </select>
+        </label>
+        <label>
+          <span>City</span>
           <input
-            value={location}
-            onChange={(event) => setLocation(event.target.value)}
-            placeholder="e.g. India"
+            value={city}
+            onChange={(event) => setCity(event.target.value)}
+            placeholder="All cities"
+            aria-label="Job city"
           />
         </label>
-        <button className="primary" disabled={busy}>
+        <button className="primary" disabled={busy || query.trim().length < 2}>
           <Search size={17} />
           {busy ? "Matching…" : "Find matching jobs"}
         </button>
@@ -1490,6 +1583,16 @@ function JobSearch({
         </div>
       )}
       {error && <div className="authMessage error">{error}</div>}
+      {!error && (
+        <div className="jobSearchSummary" aria-live="polite">
+          <div>
+            <span>Search results</span>
+            <strong>{lastSearch.query}</strong>
+          </div>
+          <p><MapPin size={14} /> {lastSearch.location}</p>
+          <b>{busy ? "Searching..." : `${jobs.length} ${jobs.length === 1 ? "job" : "jobs"}`}</b>
+        </div>
+      )}
       <div className="resultGrid">
         {jobs.map((job) => (
           <article className="resultCard" key={job.id}>
@@ -1519,7 +1622,9 @@ function JobSearch({
               {job.description.length > 300 ? "…" : ""}
             </p>
             <div className="jobActions">
-              <button onClick={() => void apply(job)}>Apply and track</button>
+              <button className="applyTrackBtn" onClick={() => void apply(job)}>
+                <ApplicationFile size={14} /> Apply and track
+              </button>
               <button
                 className="tailorBtn"
                 disabled={tailoring === job.id}
@@ -1549,6 +1654,21 @@ function JobSearch({
   );
 }
 
+function AtsResumePreview({ content }: { content: string }) {
+  const headings = /^(professional summary|summary|profile|core skills|skills|technical skills|professional experience|work experience|experience|selected projects|projects|education|certifications|certifications & achievements|achievements|awards|languages|interests|research & publications|publications)$/i;
+  const lines = content.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  return <div className="atsTextPreview" role="document" aria-label="ATS resume preview">
+    {lines.map((line, index) => {
+      if (index === 0) return <h1 key={index}>{line}</h1>;
+      if (index === 1 && !headings.test(line)) return <address key={index}>{line}</address>;
+      if (headings.test(line)) return <h2 key={index}>{line.toUpperCase()}</h2>;
+      if (/^[-*•]\s+/.test(line)) return <p className="atsPreviewBullet" key={index}>{line.replace(/^[-*•]\s+/, "")}</p>;
+      const looksLikeEntry = line.includes(" | ") || (/\b(?:present|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|19\d{2}|20\d{2})\b/i.test(line) && line.length < 100);
+      return <p className={looksLikeEntry ? "atsPreviewEntry" : ""} key={index}>{line}</p>;
+    })}
+  </div>;
+}
+
 function TailoredResumeModal({
   data,
   close,
@@ -1570,7 +1690,7 @@ function TailoredResumeModal({
           This version is saved in Generated document history. Review every line
           before applying.
         </p>
-        <textarea readOnly value={data.content} />
+        <AtsResumePreview content={data.content} />
         <div className="tailoredActions">
           <button
             onClick={() => void navigator.clipboard.writeText(data.content)}
@@ -1794,7 +1914,7 @@ function GeneratedDocumentsHistory({ refresh }: { refresh: number }) {
           </article>
         ))}</div>
       )}
-      {selected && <div className="modalBack"><section className="modal tailoredModal"><button className="modalClose" onClick={() => setSelected(null)}><X /></button><span className="modalIcon"><FileText /></span><h2>{selected.title}</h2><p>{selected.company} · {selected.type === "cover-letter" ? "Cover letter" : "Tailored resume"}</p><textarea readOnly value={selected.content} /><div className="tailoredActions"><button onClick={() => void navigator.clipboard.writeText(selected.content)}>Copy text</button><a href={download(selected)}>Download DOCX</a></div></section></div>}
+      {selected && <div className="modalBack"><section className="modal tailoredModal"><button className="modalClose" onClick={() => setSelected(null)}><X /></button><span className="modalIcon"><FileText /></span><h2>{selected.title}</h2><p>{selected.company} · {selected.type === "cover-letter" ? "Cover letter" : "Tailored resume"}</p>{selected.type === "tailored-resume" ? <AtsResumePreview content={selected.content} /> : <textarea readOnly value={selected.content} />}<div className="tailoredActions"><button onClick={() => void navigator.clipboard.writeText(selected.content)}>Copy text</button><a href={download(selected)}>Download DOCX</a></div></section></div>}
     </section>
   );
 }
@@ -2182,14 +2302,42 @@ function WorkspaceItems({ kind }: { kind: "projects" | "certificates" }) {
   );
 }
 
+function PortfolioLoading() {
+  return <section className="topicLoader portfolioLoader" aria-live="polite" aria-busy="true">
+    <div className="topicLoaderHead"><span><Globe2 /></span><div><p>PROFESSIONAL PORTFOLIO</p><h1>Composing your career story</h1><small>Bringing together your profile, work, projects, and credentials.</small></div><b><i /> Building portfolio</b></div>
+    <div className="portfolioLoadHero" aria-hidden="true"><span /><div><i /><i /><i /></div></div>
+    <div className="portfolioLoadMetrics" aria-hidden="true">{[0,1,2,3].map(item => <div key={item}><i /><span /></div>)}</div>
+    <div className="portfolioLoadContent" aria-hidden="true"><div><article><i /><i /><i /></article><article><i /><i /><i /><i /></article></div><aside><i /><i /><i /><i /></aside></div>
+  </section>;
+}
+
+function AnalyticsLoading() {
+  return <section className="topicLoader analyticsLoader" aria-live="polite" aria-busy="true">
+    <div className="topicLoaderHead"><span><ChartNoAxesCombined /></span><div><p>CAREER ANALYTICS</p><h1>Calculating your career momentum</h1><small>Reading applications, resume scores, and progress signals.</small></div><b><i /> Analyzing data</b></div>
+    <div className="analyticsLoadStats" aria-hidden="true">{[0,1,2,3].map(item => <div key={item}><span /><i /><small /></div>)}</div>
+    <div className="analyticsLoadPanels" aria-hidden="true"><article><span /><div className="analyticsLoadChart">{[48,72,56,88,64,78,94].map((height,index) => <i key={index} style={{ height: `${height}%` }} />)}</div></article><article><span />{[0,1,2,3,4].map(item => <div key={item}><i /><b /></div>)}</article></div>
+  </section>;
+}
+
+function TopicLoadError({ title, message, retry }: { title: string; message: string; retry: () => void }) {
+  return <section className="topicLoadError" role="alert"><i className="bi bi-exclamation-circle" /><div><h2>{title}</h2><p>{message}</p></div><button type="button" onClick={retry}>Try again</button></section>;
+}
+
 function PortfolioPage() {
   const [data, setData] = useState<any>(null);
+  const [error, setError] = useState("");
+  const [retry, setRetry] = useState(0);
   useEffect(() => {
-    fetch("/api/portfolio")
-      .then((r) => r.json())
-      .then(setData);
-  }, []);
-  if (!data) return <div className="moduleEmpty">Loading portfolio…</div>;
+    const controller = new AbortController();
+    setError("");
+    fetch("/api/portfolio", { signal: controller.signal })
+      .then(async response => { const result = await response.json().catch(() => null); if (!response.ok || !result?.user) throw new Error(result?.error || "Could not load portfolio."); return result; })
+      .then(result => { if (!controller.signal.aborted) setData(result); })
+      .catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "Could not load portfolio."); });
+    return () => controller.abort();
+  }, [retry]);
+  if (error) return <TopicLoadError title="Could not build your portfolio" message={error} retry={() => setRetry(value => value + 1)} />;
+  if (!data) return <PortfolioLoading />;
   const profile = data.profile || {};
   const skills = Array.isArray(profile.skills_json) ? profile.skills_json.filter((item: any) => item?.includeInCv !== false) : [];
   const experience = Array.isArray(profile.experience_json) ? profile.experience_json.filter((item: any) => item?.includeInCv !== false) : [];
@@ -2243,8 +2391,8 @@ function AnalyticsPage() {
       .catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "Could not load analytics."); });
     return () => controller.abort();
   }, [retry]);
-  if (error) return <div className="moduleEmpty" role="alert"><p>{error}</p><button type="button" className="primary" onClick={() => setRetry(value => value + 1)}>Retry</button></div>;
-  if (!data) return <div className="moduleEmpty">Loading analytics…</div>;
+  if (error) return <TopicLoadError title="Could not calculate analytics" message={error} retry={() => setRetry(value => value + 1)} />;
+  if (!data) return <AnalyticsLoading />;
   return (
     <section className="modulePage">
       <div className="moduleHero">

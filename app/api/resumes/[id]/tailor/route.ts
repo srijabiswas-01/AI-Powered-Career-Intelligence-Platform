@@ -31,7 +31,7 @@ Accuracy rules:
 
 Required plain-text structure:
 1. Candidate's full name on the first line.
-2. Existing contact details from the source on the second line. Omit details not present.
+2. Existing contact details from the source on one second line in this order when available: City, State/Country | Phone | Email | LinkedIn | GitHub | Portfolio. Omit missing details. Do not put a bullet or stray plus sign before the location.
 3. PROFESSIONAL SUMMARY
 4. CORE SKILLS
 5. PROFESSIONAL EXPERIENCE (if present)
@@ -39,7 +39,13 @@ Required plain-text structure:
 7. EDUCATION (if present)
 8. CERTIFICATIONS (if present)
 
-Use short ATS-safe section headings and achievement bullets beginning with "- ". Do not use tables, columns, markdown symbols, commentary, placeholders, or a fabricated objective. Return only the complete resume text.` },
+For each experience entry, use exactly these lines:
+JOB TITLE | COMPANY | LOCATION
+START DATE - END DATE
+- Achievement or responsibility
+
+For each project or education entry, put the title and organization on one line separated by " | ", followed by dates when available and then bullets where appropriate.
+Use short ATS-safe section headings and concise achievement bullets beginning with "- ". Use standard ASCII hyphens and vertical bars as separators. Do not use tables, columns, icons, text boxes, markdown emphasis, commentary, placeholders, keyword stuffing, or a fabricated objective. Keep the resume readable, consistently spaced, and normally within two pages. Return only the complete resume text.` },
       { role: 'user', content: `JOB\nTitle: ${title}\nCompany: ${company}\nDescription:\n${description.slice(0, 12000)}\n\nSOURCE RESUME\n${resume.content.slice(0, 18000)}` },
     ], { maxTokens: 3200 });
     const [tailored] = await database<{ id: string; created_at: Date }[]>`

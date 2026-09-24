@@ -21,5 +21,43 @@ export async function GET(request: Request) {
     select id, company, role, stage, location, applied_at from applications
     where user_id = ${user.id} and (${since}::timestamptz is null or created_at >= ${since}) order by created_at desc limit 10
   `;
-  return NextResponse.json({ stats, applications, period, since });
+  const [[profile], [certificateSummary]] = await Promise.all([
+    database<any[]>`
+      select headline, location, phone, bio, job_title, summary, skills, skills_json, experience_json
+      from profiles where user_id = ${user.id}
+    `,
+    database<any[]>`
+      select count(*)::int as count from certificates where user_id = ${user.id}
+    `,
+  ]);
+  const hasPersonalInformation = Boolean(
+    user.name?.trim() && user.email?.trim() && profile &&
+    [profile.headline, profile.job_title, profile.location, profile.phone, profile.summary, profile.bio]
+      .some((value) => String(value || '').trim()),
+  );
+  const hasWorkExperience = Array.isArray(profile?.experience_json) && profile.experience_json.some(
+    (item: any) => String(item?.title || item?.company || '').trim(),
+  );
+  const hasSkills = (Array.isArray(profile?.skills_json) && profile.skills_json.some(
+    (item: any) => String(item?.name || '').trim(),
+  )) || Boolean(String(profile?.skills || '').trim());
+  const profileCompletion = {
+    personalInformation: hasPersonalInformation,
+    workExperience: hasWorkExperience,
+    skills: hasSkills,
+    certifications: Number(certificateSummary?.count || 0) > 0,
+  };
+  const completedSections = Object.values(profileCompletion).filter(Boolean).length;
+  return NextResponse.json({
+    stats,
+    applications,
+    period,
+    since,
+    profileStrength: {
+      percentage: completedSections * 25,
+      completedSections,
+      totalSections: 4,
+      sections: profileCompletion,
+    },
+  });
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Award, BriefcaseBusiness, Camera, CircleCheck, Eye, Globe2, GraduationCap, Languages, Link, Plus, Save, Sparkles, UserRound, X } from "./bootstrap-icons";
+import { Award, BriefcaseBusiness, Camera, CircleCheck, Eye, FileText, Globe2, GraduationCap, Languages, Link, Plus, Save, Sparkles, UserRound, X } from "./bootstrap-icons";
 import { resumeContainsKeyword, sanitizeKeywordList } from "@/lib/job-keywords";
 import { analyzeCvBuilder, extractAtsKeywords } from "@/lib/ats";
 import { buildCvDocument, cvDocumentText } from "@/lib/cv-document";
@@ -141,7 +141,35 @@ export default function ProfessionalProfileSettings({ initialVariant }: { initia
     !links.some(item => item.includeInCv !== false) && "Include a verified professional link",
   ].filter(Boolean) as string[];
   if (error && !profile) return <div className="moduleEmpty">{error}</div>;
-  if (!profile || !account) return <div className="moduleEmpty">Loading professional profile…</div>;
+  if (!profile || !account) return error ? (
+    <section className="profileLoadError" role="alert">
+      <i className="bi bi-exclamation-circle" />
+      <div><h2>Could not load your CV workspace</h2><p>{error}</p></div>
+      <button type="button" onClick={() => window.location.reload()}>Try again</button>
+    </section>
+  ) : (
+    <section className="profileLoadShell" aria-live="polite" aria-busy="true">
+      <div className="profileLoadHeader">
+        <span className="profileLoadIcon"><FileText /><i><Sparkles /></i></span>
+        <div><p>AI CV BUILDER</p><h1>Preparing your professional profile</h1><span>Organizing your experience, skills, and career evidence.</span></div>
+        <div className="profileLoadStatus"><i /><b>Loading workspace</b></div>
+      </div>
+      <div className="profileLoadProgress"><i /><span /><span /><span /></div>
+      <div className="profileLoadBody" aria-hidden="true">
+        <div className="profileLoadEditor">
+          <div className="profileLoadSectionHead"><span /><div><i /><i /></div></div>
+          <div className="profileLoadFields"><i /><i /><i /><i /><i className="wide" /></div>
+          <div className="profileLoadSectionHead second"><span /><div><i /><i /></div></div>
+          <div className="profileLoadChips"><i /><i /><i /><i /><i /></div>
+        </div>
+        <div className="profileLoadDocument">
+          <span /><h2 /><p /><p />
+          <hr /><h3 /><i /><i /><i />
+          <hr /><h3 /><i /><i />
+        </div>
+      </div>
+    </section>
+  );
   const initials = account.name.split(/\s+/).slice(0, 2).map(part => part[0]).join("").toUpperCase();
   const addSkillCategory = () => { const category = newSkillCategory.trim(); if (!category) return; const existing = skillCategories.find(item => item.toLowerCase() === category.toLowerCase()); if (!existing) { setSkillCategories([...skillCategories, category]); setDirty(true); } setSkillCategory(existing || category); setNewSkillCategory(""); };
   const deleteSkillCategory = (category: string) => { const count = skills.filter(skill => skill.category === category).length; if (count && !window.confirm(`Delete ${category} and its ${count} ${count === 1 ? "skill" : "skills"}?`)) return; const remaining = skillCategories.filter(item => item !== category); setSkillCategories(remaining); setSkills(skills.filter(skill => skill.category !== category)); if (skillCategory === category) setSkillCategory(remaining[0] || ""); setDirty(true); };
