@@ -5,6 +5,7 @@ export type CvBuilderAudit = {
   checks: Array<{ key: string; label: string; earned: number; maximum: number; detail: string }>;
   matchedKeywords: string[];
   missingKeywords: string[];
+  issues: Array<{ severity: 'critical' | 'warning' | 'suggestion'; message: string }>;
 };
 
 const stopWords = new Set('a an and are as at be been by for from has have in into is it its of on or that the their this to was were will with you your our we they them who'.split(' '));
@@ -130,6 +131,16 @@ export function analyzeCvBuilder(input: {
   const roleWords = targetRole.toLowerCase().split(/[^a-z0-9]+/).filter(word => word.length > 2);
   const roleMatches = roleWords.filter(word => normalizedText.includes(word)).length;
   const formattingPoints = words.length && !/\t| {4,}/.test(text) ? 5 : 0;
+  const requiredSentences = jobDescription.split(/(?<=[.!?])\s+|\r?\n/).filter(line => /\b(required|must|mandatory|essential|minimum|need(?:ed)?|should have)\b/i.test(line));
+  const preferredSentences = jobDescription.split(/(?<=[.!?])\s+|\r?\n/).filter(line => /\b(preferred|desired|nice to have|plus|bonus|advantage)\b/i.test(line));
+  const requiredKeywords = extractAtsKeywords(requiredSentences.join(' '), 30);
+  const preferredKeywords = extractAtsKeywords(preferredSentences.join(' '), 30);
+  const missingRequired = requiredKeywords.filter(keyword => !resumeContainsKeyword(text, keyword));
+  const skillsOnly = matchedKeywords.filter(keyword => {
+    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const evidenceSections = text.split(/\n(?=(?:professional experience|work experience|experience|selected projects|projects)\b)/i).slice(1).join('\n');
+    return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(text) && !resumeContainsKeyword(evidenceSections, keyword);
+  });
   const checks = [
     { key: 'keywords', label: 'Job-description keywords', earned: jobKeywords.length ? Math.round(matchedKeywords.length / jobKeywords.length * 25) : 0, maximum: 25, detail: jobKeywords.length ? `${matchedKeywords.length} of ${jobKeywords.length} recognized terms matched.` : 'Paste a complete job description to measure relevance.' },
     { key: 'sections', label: 'Standard ATS sections', earned: Math.round(foundSections.length / Object.keys(sectionAliases).length * 15), maximum: 15, detail: `${foundSections.length} of ${Object.keys(sectionAliases).length} standard sections detected${foundSections.length ? `: ${foundSections.join(', ')}.` : '.'}` },
@@ -140,5 +151,19 @@ export function analyzeCvBuilder(input: {
     { key: 'parseability', label: 'Contact and text parseability', earned: Math.min(10, (words.length >= 100 ? 5 : words.length ? 2 : 0) + (email ? 3 : 0) + (phone ? 2 : 0)), maximum: 10, detail: `${words.length} words, ${email ? 'email' : 'no email'}, and ${phone ? 'phone' : 'no phone'} detected in the plain-text CV.` },
     { key: 'formatting', label: 'ATS-safe formatting', earned: formattingPoints, maximum: 5, detail: formattingPoints ? 'Plain text uses standard spacing without layout-breaking tabs or column gaps.' : 'Remove tabs and large spacing gaps that can disrupt ATS extraction.' },
   ];
-  return { score: checks.reduce((total, check) => total + check.earned, 0), checks, matchedKeywords, missingKeywords };
+  const issues: CvBuilderAudit['issues'] = [
+    ...(!targetRole.trim() ? [{ severity: 'critical' as const, message: 'Add the exact target role used by the employer.' }] : []),
+    ...(!jobDescription.trim() ? [{ severity: 'critical' as const, message: 'Paste the complete job description to calculate job alignment and requirements.' }] : []),
+    ...(jobDescription.trim() && jobKeywords.length < 5 ? [{ severity: 'warning' as const, message: 'The job description appears incomplete; include responsibilities, qualifications, and required skills.' }] : []),
+    ...(!email ? [{ severity: 'critical' as const, message: 'Add an email address in the document body.' }] : []),
+    ...(!phone ? [{ severity: 'warning' as const, message: 'Add a readable phone number unless you intentionally excluded it.' }] : []),
+    ...(!input.skillCount ? [{ severity: 'critical' as const, message: 'Select genuine technical skills for this CV.' }] : []),
+    ...(!input.experienceCount && !input.projectCount ? [{ severity: 'critical' as const, message: 'Add experience or a relevant project that demonstrates your skills.' }] : []),
+    ...(!input.educationCount ? [{ severity: 'warning' as const, message: 'Add education so qualification requirements can be reviewed.' }] : []),
+    ...(!metrics ? [{ severity: 'suggestion' as const, message: 'Add a truthful metric, scale, outcome, or time saved where available.' }] : []),
+    ...missingRequired.slice(0, 5).map(keyword => ({ severity: 'warning' as const, message: `Required term “${keyword}” is not demonstrated. Add it only if it is accurate.` })),
+    ...skillsOnly.slice(0, 4).map(keyword => ({ severity: 'suggestion' as const, message: `“${keyword}” needs supporting evidence in experience or projects.` })),
+    ...(preferredKeywords.length && !preferredKeywords.some(keyword => resumeContainsKeyword(text, keyword)) ? [{ severity: 'suggestion' as const, message: 'No preferred requirements are currently demonstrated; review the preferred qualifications.' }] : []),
+  ];
+  return { score: checks.reduce((total, check) => total + check.earned, 0), checks, matchedKeywords, missingKeywords, issues };
 }
