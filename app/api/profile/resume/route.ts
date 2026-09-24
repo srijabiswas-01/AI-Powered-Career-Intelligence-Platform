@@ -79,7 +79,8 @@ async function generateResume(request: Request) {
   });
   const resumeContent = cvDocumentText(cvDocument);
   const buffer = await createCvDocx(cvDocument);
-  const filename = `${user.name.replace(/[^a-z0-9]+/gi, '_')}_CV.docx`;
+  const variantFilename = String(body?.variantName || targetRole || `${user.name} CV`).trim();
+  const filename = `${variantFilename.replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'CareerPilot_CV'}_CV.docx`;
   const snapshot = { id: String(body?.variantId || ''), name: String(body?.variantName || targetRole || 'AI CV Builder CV').slice(0, 100), targetRole, jobDescription, projectIds, certificateIds, visibility: body?.visibility || {}, preferences, referral };
   const analysis = analyzeResumeText(resumeContent, jobDescription);
   const [existingResume] = body?.variantId ? await database<{ id: string }[]>`select id from resumes where user_id=${user.id} and source_type='ai_cv_builder' and builder_snapshot->>'id'=${String(body.variantId)}` : [];
@@ -102,3 +103,15 @@ async function generateResume(request: Request) {
 
 export async function GET(request: Request) { return generateResume(request); }
 export async function POST(request: Request) { return generateResume(request); }
+export async function DELETE(request: Request) {
+  const user = await getSessionUser();
+  if (!user) return apiError('Authentication required.', 401);
+  const variantId = new URL(request.url).searchParams.get('variantId')?.trim();
+  if (!variantId) return apiError('Variant ID is required.', 400);
+  const deleted = await database<{ id: string }[]>`
+    delete from resumes
+    where user_id=${user.id} and source_type='ai_cv_builder' and builder_snapshot->>'id'=${variantId}
+    returning id
+  `;
+  return Response.json({ ok: true, deleted: deleted.length });
+}

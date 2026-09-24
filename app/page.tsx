@@ -88,6 +88,17 @@ type ResumeData = {
   target_role?: string;
   job_description?: string;
 };
+function ResumeOptionGroups({ resumes }: { resumes: ResumeData[] }) {
+  const uploaded = resumes.filter(resume => resume.source_type !== "ai_cv_builder");
+  const aiCvs = resumes.filter(resume => resume.source_type === "ai_cv_builder");
+  const label = (resume: ResumeData) => resume.source_type === "ai_cv_builder"
+    ? String(resume.builder_snapshot?.name || resume.target_role || resume.filename)
+    : resume.filename;
+  return <>
+    {uploaded.length > 0 && <optgroup label="Uploaded Resumes">{uploaded.map(resume => <option value={resume.id} key={resume.id}>[Uploaded] {label(resume)}</option>)}</optgroup>}
+    {aiCvs.length > 0 && <optgroup label="AI CV Builder">{aiCvs.map(resume => <option value={resume.id} key={resume.id}>[AI CV] {label(resume)}{resume.target_role ? ` - ${resume.target_role}` : ""}</option>)}</optgroup>}
+  </>;
+}
 type DashboardData = {
   stats: {
     resumes: number;
@@ -1537,11 +1548,7 @@ function JobSearch({
             onChange={(event) => setResumeId(event.target.value)}
           >
             <option value="">Search without a resume</option>
-            {resumes.map((resume) => (
-              <option value={resume.id} key={resume.id}>
-                {resume.filename}
-              </option>
-            ))}
+            <ResumeOptionGroups resumes={resumes} />
           </select>
         </label>
         <label>
@@ -1783,11 +1790,7 @@ function CoverLetterWorkspace({ resumes }: { resumes: ResumeData[] }) {
               <option value="">
                 Use portfolio and profile instead
               </option>
-              {resumes.map((resume) => (
-                <option key={resume.id} value={resume.id}>
-                  {resume.filename}
-                </option>
-              ))}
+              <ResumeOptionGroups resumes={resumes} />
             </select>
           </label>
           <div>
